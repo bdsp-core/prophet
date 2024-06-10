@@ -1,0 +1,53 @@
+{
+    "congestive heart failure": {
+        "data_format": {
+            "icd_codes": [
+                "date_icd",
+                "icd",
+                "bdsp_patient_id"
+            ],
+            "medications": [
+                "date_med_start",
+                "date_med_end",
+                "med",
+                "bdsp_patient_id"
+            ],
+            "notes": [
+                "date_note",
+                "note",
+                "bdsp_patient_id"
+            ]
+        },
+        "config": {
+            "model_path": "./models/chf",
+            "environment": {
+                "name": "agora_chf",
+                "type": "conda",
+                "env_path": "/home/niels/miniconda3/envs/agora",
+                "dependencies_path": "./models/chf/environment.yml"
+            }
+        }
+    },
+    "epilepsy": {
+        "data_format": {
+            "icd_codes": [
+                "date_icd",
+                "icd",
+                "bdsp_patient_id"
+            ],
+            "medications": [
+                "date_med_start",
+                "date_med_end",
+                "med",
+                "bdsp_patient_id"
+            ],
+            "notes": [
+                "date_note",
+                "note",
+                "bdsp_patient_id"
+            ]
+        },
+        "filepath": "FIXME",
+        "environment": "FIXME"
+    }
+}

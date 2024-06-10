@@ -1,0 +1,292 @@
+keywords
+Congestive heart failure
+CHF
+symptoms CHF
+symptoms Congestive heart failure
+no symptoms chf
+no symptoms Congestive heart failure
+diagnosis CHF
+diagnosis Congestive heart failure
+patient has CHF
+patient has Congestive heart failure
+presenting with CHF
+presenting with Congestive heart failure
+CHF consultation
+current issues CHF
+current issues Congestive heart failure
+() CHF
+() Congestive heart failure
+[] CHF
+[] Congestive heart failure
+not represent CHF
+not represent
+with CHF
+with Congestive heart failure
+cardiac history chf
+cardiac history Congestive heart failure
+prevention chf
+prevention Congestive heart failure
+fh chf
+fh Congestive heart failure
+CHF father
+father Congestive heart failure
+CHF mother
+mother Congestive heart failure
+chf uncle
+uncle Congestive heart failure
+chf aunt
+aunt Congestive heart failure
+chf brother
+brother Congestive heart failure
+chf sister
+siter Congestive heart failure
+possible chf
+possible Congestive heart failure
+dchf
+not associated chf
+not associated Congestive heart failure
+chf stable
+stable Congestive heart failure
+decompensated chf
+decompensated Congestive heart failure
+onset chf
+onset Congestive heart failure
+histori chf
+histori Congestive heart failure
+question chf
+question Congestive heart failure
+tell doctor chf
+tell doctor Congestive heart failure
+besdside chf
+besdside Congestive heart failure
+exacerb chf
+no exacerb chf
+ef
+chest x ray
+ischem cardiomyopathi
+CHADS2
+past medic histori chf
+past medic histori congesitv heart failur
+pmh chf
+pmh congestiv heart failur
+patient activ problem list chf
+patient activ problem list congesitv heart failur
+dx chf
+dx congesitv heart failur
+famili histori chf
+famili histori congesitv heart failur
+congestiv heart failur
+left side heart failur
+left ventricular heart failur
+right side heart failur
+right ventricular heart failur 
+systol heart failur
+diastol heart failur
+chronic heart failur
+no edema
+preserv eject fraction
+reduc eject fraction
+no sign chf
+no chf
+unlik chf
+unlik congestiv heart failur
+Systolic
+Acute
+Chronic
+Diastolic
+Combined
+Biventricular
+output
+disease
+Ejection fraction
+Cardiomyopathy
+myocardial infarction
+attack
+coronary artery disease
+hypertension
+high blood pressure
+valvular heart disease
+Fluid
+Edema
+Shortness breath
+Dyspnea
+Orthopnea
+Pedal Edema
+BNP
+Ascites
+Cardiomegaly
+JVP
+Enlarged Heart
+Pleural effusion
+Pulmonary edema
+Rales
+Crackles
+Cyanosis
+Tachycardia
+Cradycardia
+Fatigue
+Atrial Fibrillation
+Ventricular arrhythmias
+Chest X-ray
+Ischemic
+Dialated cardiomyopathy
+Restrictive cardiomyopathy
+Cardiac rehabilitation
+Stress test
+Cardiac MRI
+MPI
+Myocardial perfusion imaging
+MPS
+Myocardial perfusion scan
+Nuclear imaging
+Beta blocker
+ARNI
+Angiotensin receptor neprilysin
+ICD
+Implantable cardioverter defibrillator
+CRT
+Cardiac resynchronization
+Echocardiogram
+Electrocardiogram
+ECG
+EKG
+Cardiac Catheterization
+Angiogram
+Coronary Angiography
+Holter monitor
+Cardiac Surgery
+Bypass
+Valve Repair
+Valve replacement
+Heart Transplant
+Tilt table test
+Myocardial biopsy
+Pulmonary artery
+Ventricular assist device
+VAD
+Percuatneous coronary intervention
+PCI
+Angioplasty
+CRT-D
+Transesophageal echocardiogram
+TEE
+Endomycardial biopsy
+Electrophysiology study
+EPS
+Thoracentresis
+Pericardiocentresis
+Pacemaker
+congestive
+Extra corporeal membrane oxygenation
+ECMO
+LVAD
+Left ventricular assist device
+Sinus tachycardia
+Heart Rate
+HR
+AF
+Bundle branch block
+Widened QRS complexes
+ST-segment abnormalities
+ST-segment
+T-wave abnormalities
+T-wave
+T-wave inversion
+Ischemia
+Strain
+Ventricular Remodeling
+Left ventricular hypertrophy
+LVH
+Increased coltage amplitudes
+Prolonged QT interval
+Delayed repolarization
+Electrolyte imbalances
+Low voltage
+Deep Q wave
+Wide Q waves
+Cardiac Damage
+Thrombus
+Clot Formation
+pressure
+pulmonary
+respir
+cardio
+therapy
+sodium
+cardiology
+tricuspid
+restriction
+cardiovascular
+ventricular
+intervention
+parathyroid
+Chest pain
+cholesterol
+ldl
+acrochordon
+heart
+weight
+BP
+Blood
+plan
+vitamin
+lymph node
+breath test
+SIBO
+lactose
+PCR
+Assay
+radiology
+vitamin D
+tabacco
+rhythm
+CT
+ER
+aerosol inhaler
+cation
+Catheter
+Compression Sleeve
+Bumex
+Spironalactone
+Aldactone
+Ramipril
+Losartan
+Valsartan
+Candesartan
+Carvedilol
+Metoprolol
+Bisoprolol
+Aldosterone antagonists
+Eplerenone
+Spironolactone
+Digoxin
+Hydralazine
+Isosorbide Dinitrate
+Entresto
+Sacubitril
+Ivabradine
+metformin
+albuterol sulfate
+captopril
+fosinopril
+perindopril
+quinapril
+trandolapril
+Brisoprolol
+Torsemide
+Demadex
+Chlorothiazide
+Diuril
+Amiloride
+Indapamide
+Metolazone
+Lozol
+Zaroxolyn
+Triamterene
+Dyrenium
+Adderall
+Midrin
+ipratropium
+sertraline
+valium
+levoxyl
