@@ -138,3 +138,4 @@ It's super annoying to try to have different versions of python libraries for di
 - implement multiprocessing for feature matrix generation
 - singleton versions of models, or at least a way to not have to reinitialize the model for each run
 - save intermediate steps
+- batch processing for large amounts of data
