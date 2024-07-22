@@ -7,30 +7,10 @@ from nltk.tokenize import word_tokenize
 import ray
 
 def build_feat_mat(data, vocab):
-    # data processing
-    icd = data['icd_codes']
-    med = data['medications']
+    icds = data['icd_codes']
+    meds = data['medications']
     notes = data['notes']
 
-    # if no end date is availble, add start_dt as end_dt for med
-    med['date_med_end'] = med['date_med_end'].fillna(med['date_med_start'])
-
-    # convert float
-    icd['bdsp_patient_id'] = icd['bdsp_patient_id'].astype(float)
-    med['bdsp_patient_id'] = med['bdsp_patient_id'].astype(float)
-    notes['bdsp_patient_id'] = notes['bdsp_patient_id'].astype(float)
-
-    # filter out missing ids
-    icd = icd.dropna(subset=['bdsp_patient_id'])
-    med = med.dropna(subset=['bdsp_patient_id'])
-    notes = notes.dropna(subset=['bdsp_patient_id'])
-
-    # convert datetime
-    icd['date_icd'] = pd.to_datetime(icd['date_icd'], errors='coerce')
-    med[['date_med_start', 'date_med_end']] = med[['date_med_start', 'date_med_end']].apply(pd.to_datetime, errors='coerce')
-    notes['date_note'] = pd.to_datetime(notes['date_note'], errors='coerce')
-
-    # vocab processing
     icd_vocab = vocab['icd_codes']
     med_vocab = vocab['medications']
     notes_vocab = vocab['notes']
@@ -58,8 +38,8 @@ def build_feat_mat(data, vocab):
     
     # ray initialization
     ray.init()
-    icd_ray = ray.put(icd)
-    med_ray = ray.put(med)
+    icd_ray = ray.put(icds)
+    med_ray = ray.put(meds)
     notes_ray = ray.put(notes)
     icd_vocab_ray = ray.put(icd_vocab)
     med_vocab_ray = ray.put(med_vocab)
@@ -78,18 +58,21 @@ def build_feat_mat(data, vocab):
         icds = [str(x) for x in icds.tolist()]
         icds = ' '.join(icds)
         feat_icds = np.array([int(re.search(r'(?:{})'.format(re.escape(x)), icds, re.IGNORECASE) is not None) for x in icd_vocab_ray]).reshape(1,len(icd_vocab_ray))
+        has_icd = feat_icds.max()
 
         # get meds in window, create feature matrix
-        meds = med_ray.med[
+        meds = med_ray.loc[
             (med_ray.bdsp_patient_id == pid) &
             (
                 (med_ray.date_med_start <= date_note_max) | 
                 (med_ray.date_med_end >= date_note_min)
-            )
+            ),
+            'med'
         ]
         meds = [str(x) for x in meds.tolist()]
         meds = ' '.join(meds)
         feat_meds = np.array([int(re.search(r'\b{}\b'.format(re.escape(x)), meds, re.IGNORECASE) is not None) for x in med_vocab_ray]).reshape(1,len(med_vocab_ray))
+        has_med = feat_meds.max()
 
         # stem the note, create feature matrix
         X_list = np.zeros(len(notes_vocab_ray))
@@ -115,7 +98,7 @@ def build_feat_mat(data, vocab):
 
         # put feature matrix together and return
         result = np.concatenate([feat_icds, feat_meds, feat_notes], axis = 1)
-        return result
+        return (pid, date_note, note, has_icd, has_med, result)
 
     # run ray loop
     length = len(notes)
@@ -124,11 +107,21 @@ def build_feat_mat(data, vocab):
     # ray shutdown
     ray.shutdown()
 
+    # Unpack the results
+    pids, dates, notes, has_icds, has_meds, feat_vectors = zip(*feats)
+
     # build feature matrix dataframe
-    feat_mat = np.array(feats)
+    feat_mat = np.array(feat_vectors)
     feat_mat_2 = np.reshape(feat_mat, (length, (len(icd_vocab) + len(med_vocab) + len(notes_vocab))))
     col_names = icd_vocab + med_vocab + notes_vocab
-    df = pd.DataFrame(feat_mat_2, columns=col_names)
+    df_feat = pd.DataFrame(feat_mat_2, columns=col_names)
 
-    # TODO: organized format? index = note?
-    return df
+    df_iden = pd.DataFrame({
+        'bdsp_patient_id', pids,
+        'date_note', dates,
+        'note', notes,
+        'icd+', has_icds,
+        'med+', has_meds
+    })
+
+    return df_iden, df_feat
