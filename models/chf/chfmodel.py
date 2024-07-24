@@ -15,7 +15,7 @@ from typing import Dict
 
 logger = logging.getLogger(__name__)
 
-class _CHFModel(_BaseModel):
+class CHFModel(_BaseModel):
     with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'files', 'data_format.json')) as f:
         _data_format : Dict = json.load(f)
 
@@ -35,7 +35,7 @@ class _CHFModel(_BaseModel):
             'notes': pd.read_csv(os.path.join(current_dir, 'files', 'KW_CHF_BoW.txt'))['keywords'].astype(str).tolist()
         }
 
-        self.model = joblib.load(os.path.join(current_dir, 'LR_icd_meds_notes_model.joblib'))
+        self.model = joblib.load(os.path.join(current_dir, 'files','LR_icd_meds_notes_model.joblib'))
 
         logger.info('Finished initializing model')
 
@@ -72,7 +72,7 @@ class _CHFModel(_BaseModel):
             
             if unknown_cols:
                 logger.warning(f"Ignoring unknown columns in {k}: {', '.join(unknown_cols)}")
-                df.drop(columns=unknown_cols, inplace=True)
+                data[k] = df.drop(columns=unknown_cols)
             
             if missing_cols:
                 raise ValueError(f"{k} is missing required columns: {', '.join(missing_cols)}")
@@ -90,14 +90,9 @@ class _CHFModel(_BaseModel):
         for df in [meds, icds, notes]:
             df['bdsp_patient_id'] = df['bdsp_patient_id'].astype(float)
 
-        # Find patient IDs present in all three dataframes
-        common_patient_ids = set(meds['bdsp_patient_id']) & set(icds['bdsp_patient_id']) & set(notes['bdsp_patient_id'])
-    
-        # Warn about patients not present in meds/icds
-        for df_name, df in [('medications', meds), ('icd_codes', icds)]:
-            missing_ids = set(df['bdsp_patient_id']) - common_patient_ids
-            if missing_ids:
-                logger.warning(f"{df_name} does not contain information on the following patient IDs. These features will be set to 0 for these patients.\n{', '.join(map(str, missing_ids))}")
+        # Filter out meds / icds we don't care about
+        meds = meds[meds['med'].str.contains('|'.join(self.vocab['medications']), na=False, case=False)]
+        icds = icds[icds['icd'].str.contains('|'.join(self.vocab['icd_codes']), na=False, case=False)]
 
         for df, date_cols in [
             (meds, ['date_med_start', 'date_med_end']),
@@ -106,9 +101,9 @@ class _CHFModel(_BaseModel):
         ]:
             df[date_cols] = df[date_cols].apply(pd.to_datetime, errors='coerce') # ? change to raise
 
-        meds = meds.dropna(ignore_index=True)
-        icds = icds.dropna(ignore_index=True)
-        notes = notes.dropna(ignore_index=True)
+        meds = meds.dropna().drop_duplicates(ignore_index=True)
+        icds = icds.dropna().drop_duplicates(ignore_index=True)
+        notes = notes.dropna().drop_duplicates(ignore_index=True)
 
         return {
             'medications': meds,
@@ -120,7 +115,6 @@ class _CHFModel(_BaseModel):
         logger.info('Generating features')
         return build_feat_mat(data, self.vocab)
 
-    
     def predict(self, features):
         logger.info('Getting model predictions')
         y_pred = self.model.predict(features)

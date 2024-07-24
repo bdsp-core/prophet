@@ -57,7 +57,7 @@ def build_feat_mat(data, vocab):
         icds = icd_ray[(icd_ray.bdsp_patient_id == pid) & (icd_ray.date_icd >= date_note_min) & (icd_ray.date_icd <= date_note_max)].values
         icds = [str(x) for x in icds.tolist()]
         icds = ' '.join(icds)
-        feat_icds = np.array([int(re.search(r'(?:{})'.format(re.escape(x)), icds, re.IGNORECASE) is not None) for x in icd_vocab_ray]).reshape(1,len(icd_vocab_ray))
+        feat_icds = np.array([int(re.search(r'\b{}'.format(re.escape(x)), icds, re.IGNORECASE) is not None) for x in icd_vocab_ray]).reshape(1,len(icd_vocab_ray)) # minor bug fix from previous version, will match start of icd code only
         has_icd = feat_icds.max()
 
         # get meds in window, create feature matrix
@@ -117,11 +117,11 @@ def build_feat_mat(data, vocab):
     df_feat = pd.DataFrame(feat_mat_2, columns=col_names)
 
     df_iden = pd.DataFrame({
-        'bdsp_patient_id', pids,
-        'date_note', dates,
-        'note', notes,
-        'icd+', has_icds,
-        'med+', has_meds
+        'bdsp_patient_id': pids,
+        'date_note': dates,
+        'note': notes,
+        'icd+': has_icds,
+        'med+': has_meds
     })
 
     return df_iden, df_feat
