@@ -1,7 +1,7 @@
 import sys
 import os
 import pandas as pd
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 # TODO: enforce typing via pydantic?
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -15,6 +15,14 @@ class EHRPredict:
     @staticmethod
     def get_data_format(phenotype : str) -> Dict:
         return _ModelCreator.get_data_format(phenotype)
+    
+    @staticmethod
+    def get_credits(phenotype : str) -> Dict:
+        return _ModelCreator.get_credits(phenotype)
+    
+    @staticmethod
+    def get_models() -> List[str]:
+        return _ModelCreator.get_models()
 
     def predict(self, phenotype : str, data: Optional[Dict[str, pd.DataFrame]]=None, **kwargs):
         req_dfs = _ModelCreator.get_data_format(phenotype).keys()

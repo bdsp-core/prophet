@@ -1,0 +1,282 @@
+model_path: models/epilepsy/epilepsy_model.joblib
+credits: Fernandes, M., Cardall, A., Jing, J., Ge, W., Moura, L. M. V. R., Jacobs, C., McGraw, C., Zafar, S. F., & Westover, M. B. (2023). Identification of patients with epilepsy using automated electronic health records phenotyping. Epilepsia, 64(6), 1472–1481. https://doi.org/10.1111/epi.17589
+schema:
+  demo:
+    id : !pl String
+    date_of_birth: !pl Date
+    sex: !pl String
+  icd:
+    id : !pl String
+    icd : !pl String
+    date : !pl Date
+  med:
+    id : !pl String
+    med : !pl String
+    date : !pl Date
+  note:
+    id : !pl String
+    note : !pl String
+    date : !pl Date
+parameters:
+  threshold: 0.39
+  icd:
+    epilepsy_and_recurrent_seizures : ^G40.*|^345.*|^Q04\.?3|^R56\.?9|^742\.?4
+    convulsions_seizures : ^780\.?39|^R56.*
+    syncope : ^R55|^780\.?2
+  med:
+    names: [levetiracetam, keppra, lacosamide, vimpat, phenobarbital, phenytoin, dilantin, valproic acid, valproate, depakote, depakene, zonisamide, zonegran, perampanel, fycompa, clobazam, onfi, clonazepam, klonopin, diazepam, valium, lorazepam, ativan, oxcarbazepine, trileptal, oxtellar, carbamazepine, tegretol, eslicarbazepine, aptiom, gabapentin, neurontin, pregabalin, lyrica, brivaracetam, briviact, cannabidiol, epidiolex, cenobamate, xcopri, lamotrigine, lamictal, fosphenytoin, propofol, midazolam, nayzilam, ketamine, pentobarbital, acetazolamide, acth, epitol, equetro, carbatrol, frisium, sympazan, epitril, rivotril, clorazepate, tranxene, gen xene, diamox, diastat, divalproex sodium, ethosuximide, zarontin, ethotoin, ezogabine, potiga, felbamate, felbatol, gralise, horizant, roweepra, spritam, elepsia xr, methsuximide, methosuximide, celontin, luminol, luminal, epanutin, phenytek, primidone, mysoline, rufinamide, banzel, inovelon, stiripentol, diacomit, tiagabine, gabitril, topiramate, topamax, qudexy xr, trokendi xr, convulex, depacon, orfiril, valporal, valprosid, vigabatrin, sabril, vigadrone]
+    groupings:
+      'phentermine.*topiramate|topiramate.*phentermine|qsymia': 'phentermine/topiramate'
+      'phenobarbital.*propantheline|propantheline.*phenobarbital': 'propantheline/phenobarbital'
+      'acetazolamide|diamox': 'acetazolamide'
+      'eslicarbazepine|aptiom': 'eslicarbazepine'
+      'lorazepam|ativan': 'lorazepam'
+      'rufinamide|banzel': 'rufinamide'
+      'brivaracetam|briviact': 'brivaracetam'
+      'cannabidiol|epidiolex': 'cannabidiol'
+      'carbamazepine|carbatrol|epitol|equetro|tegretol': 'carbamazepine'
+      'methsuximide|celontin': 'methsuximide'
+      'cenobamate|xcopri': 'cenobamate'
+      'clobazam|onfi|sympazan': 'clobazam'
+      'clonazepam|klonopin': 'clonazepam'
+      'clorazepate|tranxene': 'clorazepate'
+      'valproic acid|depacon|depakene|depakote|divalproex|stavzor|valproate': 'valproic acid'
+      'diazepam|diastat|valium|valtoco': 'diazepam'
+      'fosphenytoin': 'fosphenytoin'
+      'mephenytoin': 'mephenytoin'
+      '\bphenytoin\b|dilantin|phenytek': 'phenytoin'
+      'levetiracetam|elepsia|keppra|roweepra|spritam': 'levetiracetam'
+      'esketamine|spravato': 'esketamine'
+      'ethosuximide|zarontin': 'ethosuximide'
+      'ezogabine|potiga': 'ezogabine'
+      'gabapentin|fanatrex|gabacaine|gralise|horizant|neurontin|smartrx': 'gabapentin'
+      'felbamate|felbatol': 'felbamate'
+      'perampanel|fycompa': 'perampanel'
+      'tiagabine|gabitril': 'tiagabine'
+      'midazolam|nayzilam': 'midazolam'
+      '\bketamine\b|ketalar': 'ketamine'
+      'lacosamide|vimpat': 'lacosamide'
+      'lamotrigine|lamictal|subvenite': 'lamotrigine'
+      'phenobarbital|luminal': 'phenobarbital'
+      'pregabalin|lyrica': 'pregabalin'
+      'primidone|mysoline': 'primidone'
+      'oxcarbazepine|oxtellar|trileptal': 'oxcarbazepine'
+      'ethotoin|peganone': 'ethotoin'
+      'phenobarbital|pentobarbital': 'phenobarbital'
+      'propofol': 'propofol'
+      'topiramate|qudexy|topamax|topiragen|trokendi': 'topiramate'
+      'vigabatrin|sabril': 'vigabatrin'
+      'zonisamide|zonegran': 'zonisamide'
+  kws:
+    join_columns:
+      - ['history', 'hx']
+      - ['follow up', 'followup']
+      - ['sz free', 'szfree']
+      - ['seizure free', 'seizurefree']
+      - ['sz free', 'seizure free']
+      - ['carbamazepin', 'cbz']
+      - ['lamotrigin', 'ltg']
+      - ['levetiracetam', 'lev']
+      - ['oxcarbazepin', 'oxc']
+      - ['topamax', 'tpm']
+      - ['lowthres', 'lowerthres']
+      - ['chemo', 'chemotherapy']
+      - ['epileptiform', 'epileptogenic']
+      - ['deja', 'dejavu']
+      - ['tonic clonic', 'tonicclonic']
+      - ['nonepileptiform', 'non epileptiform']
+      - ['asneeded', 'asneededfollow']
+      - ['recurrent', 'recurrents']
+      - ['single', 'singlesz']
+      - ['non epileptic', 'non  epileptic']
+    pro:
+      both: ['epilepsi', 'pnes', 'both']
+      mixed dis: ['mix', 'disord']
+      ictal: ['ictal']
+      aura: ['aura']
+      convulse: ['convuls']
+      breakthrough: ['breakthrough', 'seizur']
+      focal: ['focal']
+      idiopathic: ['epilepsi', 'general', 'idiopath']
+      history: ['histori', 'seizur']
+      hx: ['hx', 'seizur']
+      complex: ['complex', 'seizur']
+      partial: ['partial', 'seizur']
+      myoclonic: ['myoclon']
+      generalized: ['general', 'seizur']
+      continue: ['on', 'continu']
+      drive: ['month', 'drive']
+      szdrive: ['seizur', 'drive']
+      deja: ['vu', 'deja']
+      seizurefree: ['seizurefre']
+      szfree: ['szfree']
+      seizure free: ['free', 'seizur']
+      sz free: ['free', 'sz']
+      frontallobe: ['frontal', 'lobe']
+      nocturnal: ['nocturn']
+      febrile: ['febril']
+      perinatal: ['complic', 'perinat']
+      control: ['control', 'seizur']
+      monotherapy: ['monotherapi']
+      absence: ['absenc', 'seizur']
+      dejavu: ['dejavu']
+      postictal: ['postict', 'confus']
+      tonicclonic: ['tonniclon']
+      tonic clonic: ['tonic', 'clonic']
+      sudden: ['death', 'unexpect', 'sudden']
+      sudep: ['sudep']
+      droop: ['facial', 'droop']
+      intractable: ['epilepsi', 'intract']
+      daily: ['daili', 'seizur']
+      decreased: ['seizur', 'decreas']
+      device: ['devic']
+      surgical: ['intervent', 'surgic']
+      reprogram: ['reprogram']
+      abnormaleeg: ['abnorm', 'eeg']
+      with: ['epilepsi', 'with']
+      juvenile: ['epilespi', 'juvenil']
+      myoclonus: ['myoclonus']
+      recurrent: ['sz', 'recurr']
+      recurrents: ['seizur', 'recurr']
+      noncompliance: ['noncompli']
+      stable: ['stabl', 'seizur']
+      shoulder: ['disloc', 'shoulder']
+      narcolepsy: ['narcolepsi']
+      sleep clinic: ['clinic', 'sleep']
+    neg:
+      evid: ['diagnosi', 'epilepsi', 'evid', 'not']
+      recommend: ['medic', 'antiepilept', 'recommend', 'not']
+      defer sz: ['anti', 'defer', 'seizur']
+      defer med: ['epilept', 'anti', 'defer']
+      refer: ['neurolog', 'gener', 'referr']
+      follow up: ['follow', 'not', 'up', 'requir']
+      followup: ['requir', 'followup', 'not']
+      cannot: ['epilept', 'event', 'cannot']
+      pnes: ['pnes']
+      nosz: ['no', 'event', 'seizur']
+      unlikely: ['seizur', 'unlik']
+      fnd: ['function', 'disord', 'neurolog']
+      migraine: ['migrain']
+      anxiety: ['anxieti']
+      syncope: ['syncop']
+      cd: ['convers', 'disord']
+      psycho: ['psychogen']
+      risk: ['factor', 'seizur', 'have', 'risk', 'not']
+      sleep: ['disord', 'sleep']
+      apnea: ['apnea', 'sleep']
+      test: ['test', 'recommend', 'not']
+      suspicion: ['low', 'seizur', 'suspicion']
+      tremor: ['tremor', 'physiolog']
+      "seizures": ['seizur', "''"]
+      fn: ['function', 'neurolog']
+      vasovagal: ['vasovag']
+      pcp: ['care', 'defer', 'physician', 'primary']
+      definition: ['meet', 'definit', 'epilepsi', 'not']
+      support: ['diagnosi', 'epilepsi', 'support', 'not']
+      amnesia: ['amnesia']
+      provoke: ['provok', 'seizur']
+      depression: ['dispress']
+      shiver: ['shiver']
+      arrest: ['arrest', 'cardiac']
+      noanti: ['medic', 'no', 'anti', 'seizur']
+      neuropathy: ['neuropathi']
+      neuropathic: ['neuropath']
+      meningioma: ['me ningioma']
+      holdoff: ['anti', 'off', 'hold', 'epilept', 'start']
+      diabetes: ['diabet']
+      neurosarcoidosis: ['neurosarcoidosi']
+      sdh: ['sdh']
+      postoper: ['oper', 'post']
+      hemorrhage: ['traumat', 'hemorrhag']
+      concern: ['low', 'seizur', 'concern']
+      noconcern: ['no', 'seizur', 'concern']
+      convince: ['convinc', 'seizur', 'not']
+      follow: ['epilepsi', 'follow', 'need', 'not']
+      notfollowup: ['followup', 'need', 'not']
+      start: ['medic', 'start', 'antiepilept', 'not']
+      startsz: ['antiseizur', 'start', 'medic', 'not']
+      cause: ['epilepsi', 'unlik']
+      trauma: ['trauma']
+      traumatic: ['traumat']
+      hematoma: ['hematoma']
+      abscess: ['abscess', 'brain']
+      hold: ['medic', 'off', 'hold']
+      postop: ['postop']
+      single: ['seizur', 'singl']
+      singlesz: ['sz', 'singl']
+      funcevents: ['event', 'function']
+      asneeded: ['need', 'up', 'as', 'follow']
+      asneededfollow: ['need', 'followup', 'as']
+      referpsy: ['psychiatri', 'referr']
+      defermed: ['medic', 'defer']
+      acute: ['acut', 'seizur', 'symptomat']
+      symptomatic: ['symptomat', 'seizur']
+      first: ['time', 'seizur', 'first']
+      lifetime: ['lifetim', 'seizur', 'one']
+      evidence: ['no', 'seizur', 'evid']
+      meet: ['meet', 'epilepsi', 'not']
+      notneedmedic: ['medic', 'need', 'not']
+      jacobsen: ['syndrom', 'jacobsen']
+      alcohol: ['alcohol', 'excess']
+      exam: ['exam', 'normal', 'neurolog']
+      mri: ['mri', 'normal']
+      eeg: ['normal', 'eeg']
+      eprisk: ['epilepsi', 'no', 'risk']
+      factors: ['epilepsi', 'no', 'risk', 'factor']
+      epileptiform: ['no', 'abnorm', 'epileptiform']
+      psychiatric: ['psychiatr']
+      fentanyl: ['fentanyl']
+      bipolar: ['bipolar']
+      not have: ['epilepsi', 'have', 'not']
+      bite: ['no', 'bite']
+      incontinence: ['no', 'incontin']
+      lowthres: ['low', 'threshold', 'seizur']
+      lowerthres: ['threshold', 'seizur', 'lower']
+      antisz: ['antiseizur', 'no', 'medic']
+      had: ['had', 'seizur', 'not']
+      nonepileptic: ['nonepilept']
+      chemo: ['chemo']
+      chemotherapy: ['chemotherapi']
+      epileptogenic: ['no', 'abnorm', 'epileptogen']
+      numb: ['numb']
+      surgery: ['surgeri']
+      discharge: ['epilepsi', 'discharg', 'clinic']
+      nonepileptiform: ['nonepileptiform']
+      non epileptiform: ['non', 'epileptiform']
+      not epileptic: ['epilept', 'not']
+      dementia: ['dementia']
+      think: ['epilepsi', 'think', 'not']
+      diagnose: ['diagnosi', 'no', 'epilepsi']
+      tingling: ['tingl']
+      activity: ['epileptiform', 'activ', 'not']
+      noseizure: ['no', 'seizur']
+      withdrawal: ['seizur', 'withdraw']
+      dizzy: ['dizzi']
+      maintain: ['maintain', 'conscious']
+      electrograph: ['no', 'electrograph', 'seizur']
+      wean: ['off', 'wean']
+      taper: ['taper']
+      resect: ['resect']
+      second: ['second', 'opinion']
+      definite: ['diagnosi', 'definit', 'epilepsi']
+      pseudoseizure: ['pseudoseizur']
+      cardiology: ['cardiolog']
+      againstsz: ['against', 'seizur']
+      against: ['against', 'epilepsi']
+      ptsd: ['ptsd']
+      pneslong: ['psychogen', 'nonepilept', 'seizur']
+      presyncope: ['presyncop']
+      hypoglycemia: ['hypoglycemia']
+      doubt: ['doubt', 'seizur']
+      carry: ['diagnosi', 'epilepsi', 'carri', 'not']
+      acutesz: ['acut', 'seizur']
+      deny: ['deni', 'seizur']
+      spell: ['provok', 'spell']
+      non epileptic: ['epilept', 'spell', 'non']
+      non  epileptic: ['nonepilept', 'spell']
+      insomnia: ['insomnia']
+      migraine aura: ['aura', 'migrain']
+      clinical: ['no', 'seizur', 'clinic']
+      criteria: ['epilepsi', 'criteria', 'not']
+    med: ['elepsia', 'lamict', 'levetiracetam', 'percocet', 'trilept', 'sabril', 'orfiril', 'klonopin', 'frisium', 'roweepra', 'celontin', 'cenobam', 'acth', 'valproic', 'gabapentin', 'oxtellar xr', 'fycompa', 'felbam', 'phenytoin', 'potiga', 'zonegran', 'primidon', 'ativan', 'depakot', 'lyrica', 'luminol', 'zarontin', 'dilantin', 'mysolin', 'vigabatrin', 'banzel', 'felbatol', 'lacosamid', 'sympazan', 'horiz', 'tranxen', 'gabitril', 'vimpat', 'eslicarbazepin', 'xene', 'epanutin', 'spritam', 'rufinamid', 'tiagabin', 'clonazepam', 'valpor', 'trokendi', 'pregabalin', 'perampanel', 'cbz', 'diamox', 'topamax', 'valproat', 'ethotoin', 'ethosuximid', 'epitol', 'lev', 'phenobarbit', 'clorazep', 'diacomit', 'tpm', 'lorazepam', 'xcopri', 'lamotrigin', 'rivotril', 'acetazolamid', 'ezogabin', 'gralis', 'carbamazepin', 'onfi', 'valium', 'stiripentol', 'inovelon', 'phenytek', 'vigadron', 'valprosid', 'xanax', 'depaken', 'cannabidiol', 'brivaracetam', 'carbatrol', 'oxc', 'aptiom', 'zonisamid', 'methsuximid', 'qudexi', 'convulex', 'briviact', 'topiram', 'ltg', 'diastat', 'equetro', 'tegretol', 'keppra', 'wellbutrin', 'lumin', 'acthar', 'depacon', 'cocaine', 'epitril', 'neurontin', 'diazepam', 'ige', 'epidiolex', 'divalproex', 'oxcarbazepin', 'methosuximid', 'teril', 'clobazam']
+  final_cols: ['age', 'sex', 'epilepsy_and_recurrent_seizures', 'convulsions_seizures', 'syncope', 'n_icds', 'levetiracetam', 'lacosamide', 'phenobarbital', 'phenytoin', 'valproic acid', 'zonisamide', 'perampanel', 'clobazam', 'clonazepam', 'diazepam', 'lorazepam', 'oxcarbazepine', 'carbamazepine', 'eslicarbazepine', 'gabapentin', 'pregabalin', 'brivaracetam', 'cannabidiol', 'cenobamate', 'lamotrigine', 'midazolam', 'acetazolamide', 'ethosuximide', 'felbamate', 'primidone', 'rufinamide', 'tiagabine', 'topiramate', 'n_meds', 'both_', 'mixed dis_', 'ictal_', 'aura_', 'convulse_', 'breakthrough_', 'focal_', 'idiopathic_', 'history_', 'complex_', 'partial_', 'myoclonic_', 'generalized_', 'continue_', 'drive_', 'szdrive_', 'deja_', 'sz free_', 'frontallobe_', 'nocturnal_', 'febrile_', 'perinatal_', 'control_', 'monotherapy_', 'absence_', 'postictal_', 'tonic clonic_', 'sudden_', 'sudep_', 'droop_', 'intractable_', 'daily_', 'decreased_', 'device_', 'surgical_', 'reprogram_', 'abnormaleeg_', 'with_', 'myoclonus_', 'recurrent_', 'noncompliance_', 'stable_', 'shoulder_', 'narcolepsy_', 'sleep clinic_', 'evid_', 'follow up_', 'pnes_', 'nosz_', 'unlikely_', 'fnd_', 'migraine_', 'anxiety_', 'syncope_', 'cd_', 'psycho_', 'risk_', 'sleep_', 'apnea_', 'test_', 'suspicion_', 'tremor_', 'fn_', 'vasovagal_', 'support_', 'amnesia_', 'provoke_', 'shiver_', 'arrest_', 'neuropathy_', 'neuropathic_', 'diabetes_', 'sdh_', 'postoper_', 'hemorrhage_', 'concern_', 'noconcern_', 'convince_', 'follow_', 'notfollowup_', 'start_', 'startsz_', 'cause_', 'trauma_', 'traumatic_', 'hematoma_', 'abscess_', 'hold_', 'postop_', 'single_', 'funcevents_', 'asneeded_', 'referpsy_', 'defermed_', 'acute_', 'symptomatic_', 'first_', 'lifetime_', 'evidence_', 'meet_', 'notneedmedic_', 'alcohol_', 'exam_', 'mri_', 'eeg_', 'eprisk_', 'factors_', 'epileptiform_', 'psychiatric_', 'fentanyl_', 'bipolar_', 'not have_', 'bite_', 'incontinence_', 'lowthres_', 'antisz_', 'had_', 'nonepileptic_', 'chemo_', 'numb_', 'surgery_', 'discharge_', 'nonepileptiform_', 'not epileptic_', 'dementia_', 'think_', 'diagnose_', 'tingling_', 'activity_', 'noseizure_', 'withdrawal_', 'dizzy_', 'maintain_', 'electrograph_', 'wean_', 'taper_', 'resect_', 'second_', 'definite_', 'pseudoseizure_', 'cardiology_', 'againstsz_', 'against_', 'ptsd_', 'pneslong_', 'presyncope_', 'hypoglycemia_', 'doubt_', 'acutesz_', 'deny_', 'spell_', 'non epileptic_', 'insomnia_', 'migraine aura_', 'clinical_', 'criteria_', 'klonopin_', 'carbatrol_', 'zonisamid_', 'brivaracetam_', 'carbamazepin_', 'ethosuximid_', 'dilantin_', 'depakot_', 'perampanel_', 'divalproex_', 'depaken_', 'pregabalin_', 'ezogabin_', 'neurontin_', 'valproic_', 'lumin_', 'mysolin_', 'aptiom_', 'felbam_', 'felbatol_', 'keppra_', 'cannabidiol_', 'potiga_', 'valproat_', 'oxcarbazepin_', 'acetazolamid_', 'lyrica_', 'eslicarbazepin_', 'gabapentin_', 'diastat_', 'percocet_', 'phenytoin_', 'tegretol_', 'onfi_', 'vimpat_', 'zonegran_', 'primidon_', 'phenobarbit_', 'vigabatrin_', 'lacosamid_', 'tiagabin_', 'cenobam_', 'epidiolex_', 'clorazep_', 'clonazepam_', 'tranxen_', 'topiram_', 'lamotrigin_', 'briviact_', 'celontin_', 'xanax_', 'levetiracetam_', 'gabitril_', 'ige_', 'trokendi_', 'ativan_', 'lorazepam_', 'diazepam_', 'banzel_', 'clobazam_', 'diamox_', 'trilept_', 'rufinamid_', 'wellbutrin_', 'zarontin_', 'rivotril_', 'fycompa_', 'valium_', 'xcopri_', 'topamax_', 'lamict_']

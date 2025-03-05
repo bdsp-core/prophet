@@ -1,0 +1,21 @@
+Get one model's pipeline completely working
+
+Additional features:
+    allow for filepath input (csv or parquet)
+    schema validation
+    cache processed features
+    limit compute resources depending on computer
+    
+
+save features
+demographic df not being checked
+fix force
+
+
+- implement multiprocessing for feature matrix generation
+- singleton versions of models, or at least a way to not have to reinitialize the model for each run
+- save intermediate steps
+- batch processing for large amounts of data
+
+lazy loading
+

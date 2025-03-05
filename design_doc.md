@@ -111,7 +111,7 @@ It's super annoying to try to have different versions of python libraries for di
 <span style='color: #e64747;'>Model not available yet</span>  
 <span style='color: #e09c3b'>Model finished</span>  
 <span style='color: #e6e22e'>Model integrated</span>  
-<span style='color: #8fb935'>Model run on data</span>
+<span style='color: #8fb935'>Model run on data **[COHORT]**</span>
 
 ### NLP models
 
@@ -121,12 +121,12 @@ It's super annoying to try to have different versions of python libraries for di
 - <span style='color: #e09c3b'>Ischemic Stroke</span>
 - <span style='color: #e09c3b'>Intracranial Hemorrhage</span>
 - <span style='color: #e09c3b'>Mild Cognitive Impairment / Alzheimer's Disease</span>
-- <span style='color: #e64747;'>Subarachnoid Hemorrhage</span>
-- <span style='color: #e64747;'>Parkinson's Disease</span>
-- <span style='color: #e64747;'>Cardiac Arrest</span>
-- <span style='color: #e64747;'>Traumatic Brain Injury</span>
-- <span style='color: #e64747;'>Brain Tumors</span>
-- <span style='color: #e64747;'>Subdural Hematoma</span>
+- <span style='color: #e09c3b;'>Subarachnoid Hemorrhage</span>
+- <span style='color: #8fb935;'>Parkinson's Disease: **MGB**</span>
+- <span style='color: #e09c3b;'>Cardiac Arrest</span>
+- <span style='color: #e09c3b;'>Traumatic Brain Injury</span>
+- <span style='color: #e09c3b;'>Brain Tumors</span>
+- <span style='color: #e09c3b;'>Subdural Hematoma</span>
 - <span style='color: #e64747;'>Cefepime Neurotoxicity</span>
 
 ### Rule-based models
