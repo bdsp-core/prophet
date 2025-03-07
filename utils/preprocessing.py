@@ -15,37 +15,45 @@ class DataFrameSchema:
     def __init__(self, schema: Dict[str, pl.DataType]):
         self.schema = schema
         
-    def validate(self, df: pl.DataFrame, force_casting: bool = False) -> Tuple[List[str], Optional[pl.DataFrame]]:
+    def validate(self, df: pl.LazyFrame | pl.DataFrame, force_casting: bool = False) -> Tuple[List[str], Optional[pl.LazyFrame | pl.DataFrame]]:
         """
-        Validate a DataFrame against the schema and optionally force type casting
+        Validate a DataFrame or LazyFrame against the schema and optionally force type casting
         
         Args:
-            df: DataFrame to validate
+            df: DataFrame or LazyFrame to validate
             force_casting: If True, will attempt to cast columns to the schema types with Polars cast(strict=True)
             
         Returns:
-            Tuple of (list of validation errors, converted DataFrame if force_casting is True)
+            Tuple of (list of validation errors, converted DataFrame/LazyFrame if force_casting is True)
         """
         errors = []
         converted_df = None
         
+        # Get schema info without triggering expensive operations
+        df_schema = df.collect_schema()
+        df_columns = df_schema.names()
+        
+        # Check for required columns
+        missing_columns = set(self.schema.keys()) - set(df_columns)
+        if missing_columns:
+            errors.append(f"Missing required columns: {', '.join(missing_columns)}")
+        
         if force_casting:
-            # Create a new DataFrame with forced type conversions
-            converted_df = df.clone()
+            # Create expressions for forced type conversions
             cast_expressions = []
             
             for col_name, expected_dtype in self.schema.items():
-                if col_name in df.columns:
-                    actual_dtype = df[col_name].dtype
+                if col_name in df_columns:
+                    actual_dtype = df_schema[col_name]
                     
                     # Only cast if types don't match
                     if str(actual_dtype) != str(expected_dtype):
                         try:
                             cast_expressions.append(
-                                pl.col(col_name).cast(expected_dtype, strict=True)
+                                pl.col(col_name).cast(expected_dtype, strict=True).alias(col_name)
                             )
                             warnings.warn(
-                                f"Column '{col_name}' type converted from {actual_dtype} to {expected_dtype}. ",
+                                f"Column '{col_name}' type converted from {actual_dtype} to {expected_dtype}.",
                                 UserWarning
                             )
                         except Exception as e:
@@ -55,25 +63,24 @@ class DataFrameSchema:
             
             if cast_expressions:
                 try:
-                    converted_df = converted_df.with_columns(cast_expressions)
+                    # Apply type conversions if needed
+                    converted_df = df.with_columns(cast_expressions)
                 except Exception as e:
                     errors.append(f"Error during type conversion: {str(e)}")
+            else:
+                # No conversions needed
+                converted_df = df
         
-        # Check for required columns
-        missing_columns = set(self.schema.keys()) - set(df.columns)
-        if missing_columns:
-            errors.append(f"Missing required columns: {', '.join(missing_columns)}")
-            
         # Validate each column's data type
-        df_to_check = converted_df if force_casting else df
+        schema_to_check = (converted_df if converted_df is not None else df).collect_schema() if force_casting else df_schema
+        
         for col_name, expected_dtype in self.schema.items():
-            if col_name not in df_to_check.columns:
+            if col_name not in df_columns:
                 continue
                 
-            col = df_to_check[col_name]
-            actual_dtype = col.dtype
+            actual_dtype = schema_to_check[col_name]
             
-            # Handle type checking by string comparison instead of using isinstance
+            # Handle type checking by string comparison
             if str(actual_dtype) != str(expected_dtype):
                 errors.append(
                     f"Column '{col_name}' has incorrect type. "

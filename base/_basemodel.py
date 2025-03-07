@@ -108,8 +108,8 @@ class _BaseModel(ABC):
         return data
 
     @abstractmethod
-    def predict(self, features : pl.DataFrame) -> pl.DataFrame:
-        '''Get predictions from the model using the features.'''
+    def run(self, data: Dict[str, pl.DataFrame], show_progress_bar, return_features) -> pl.DataFrame:
+        '''Get predictions from the model using the data.'''
         pass
 
 
