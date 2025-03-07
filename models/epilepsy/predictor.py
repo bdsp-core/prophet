@@ -9,13 +9,14 @@ import ray
 import joblib
 from ray.experimental import tqdm_ray
 from datetime import datetime
+import time
 
 logger = logging.getLogger(__name__)
 
 class EpilepsyModel(_BaseModel):
     DEFAULT_CONFIG_PATH = 'models/epilepsy/config.yaml'
 
-    def __init__(self, config_path = 'models/epilepsy/config.yaml'):
+    def __init__(self, config_path = None):
         if config_path is None:
             config_path = self.DEFAULT_CONFIG_PATH
         super().__init__(config_path)
@@ -25,7 +26,7 @@ class EpilepsyModel(_BaseModel):
         except LookupError:
             nltk.download('punkt')
 
-    def run(self, data: Dict[str, pl.DataFrame], force_casting=False) -> pl.DataFrame:
+    def run(self, data: Dict[str, pl.DataFrame], show_progress=False, return_features=False, force_casting=False) -> pl.DataFrame:
         """
         Run the model on the provided data.
         
@@ -37,21 +38,25 @@ class EpilepsyModel(_BaseModel):
             feat: DataFrame with features
             pred: DataFrame with predictions
         """
-        feat = self.preprocess(data, force_casting)
+        feat = self.preprocess(data, show_progress, force_casting)
         pred = self.predict(feat)
-        return feat, pred
+        if return_features:
+            return feat, pred
+        else:
+            return pred
 
 
     def load_model(self, model_path: str):
-        logging.info(f"Loading model from {model_path}")
+        logger.info(f"Loading model from {model_path}")
         return joblib.load(model_path)
 
-    def preprocess(self, data: Dict[str, pl.DataFrame], force_casting=False) -> Dict[str, pl.DataFrame]:
-        logging.info(f"Preprocessing started at {datetime.now()}")
+    def preprocess(self, data: Dict[str, pl.DataFrame], show_progress=False, force_casting=False) -> Dict[str, pl.DataFrame]:
+        preproc_start = time.time()
+        logger.info(f"Preprocessing started at {datetime.now().strftime('%H:%M:%S')}")
         data = super().preprocess(data, force_casting)
 
         feat = data['note'].select(['id', 'date']).unique()
-        logging.info(f'Generating features for n = {len(feat)}')
+        logger.info(f'Generating features for n = {len(feat)}')
 
         # preliminary filter by just ids
         data['demo'] = data['demo'].filter(pl.col('id').is_in(feat['id'].unique()))
@@ -59,21 +64,25 @@ class EpilepsyModel(_BaseModel):
         data['med'] = data['med'].filter(pl.col('id').is_in(feat['id'].unique()))
 
         # begin preprocess
-        logging.info(f"Demo preprocessing started at {datetime.now()}")
+        _start = time.time()
+        logger.info(f"Demo preprocessing started at {datetime.now().strftime('%H:%M:%S')}")
         demo_feat = self._preprocess_demo(data['demo'], feat)
-        logging.info(f"Demo preprocessing finished at {datetime.now()}")
+        logger.info(f"Demo preprocessing finished in {time.time() - _start:.2f}s")
 
-        logging.info(f"ICD preprocessing started at {datetime.now()}")
+        _start = time.time()
+        logger.info(f"ICD preprocessing started at {datetime.now().strftime('%H:%M:%S')}")
         icd_feat = self._preprocess_icd(data['icd'], feat)
-        logging.info(f"ICD preprocessing finished at {datetime.now()}")
+        logger.info(f"ICD preprocessing finished in {time.time() - _start:.2f}s")
 
-        logging.info(f"Med preprocessing started at {datetime.now()}")
+        _start = time.time()
+        logger.info(f"Med preprocessing started at {datetime.now().strftime('%H:%M:%S')}")
         med_feat = self._preprocess_med(data['med'], feat)
-        logging.info(f"Med preprocessing finished at {datetime.now()}")
+        logger.info(f"Med preprocessing finished in {time.time() - _start:.2f}s")
 
-        logging.info(f"Note preprocessing started at {datetime.now()}")
-        note_feat = self._preprocess_note(data['note'], feat)
-        logging.info(f"Note preprocessing finished at {datetime.now()}")
+        _start = time.time()
+        logger.info(f"Note preprocessing started at {datetime.now().strftime('%H:%M:%S')}")
+        note_feat = self._preprocess_note(data['note'], feat, show_progress)
+        logger.info(f"Note preprocessing finished in {time.time() - _start:.2f}s")
 
         # join features
         feat = feat.join(
@@ -94,7 +103,7 @@ class EpilepsyModel(_BaseModel):
             how='left'
         ).select(['id', 'date'] + self.config['parameters']['final_cols'])
 
-        logging.info(f"Preprocessing finished at {datetime.now()}")
+        logger.info(f"Preprocessing finished in {time.time() - preproc_start:.2f}s")
         return feat
 
     def _preprocess_demo(self, demo_df: pl.DataFrame, feat: pl.DataFrame) -> pl.DataFrame:
@@ -220,7 +229,7 @@ class EpilepsyModel(_BaseModel):
         ).fill_null(0)
         return med_feat
     
-    def _preprocess_note(self, note_df: pl.DataFrame, feat: pl.DataFrame) -> pl.DataFrame:
+    def _preprocess_note(self, note_df: pl.DataFrame, feat: pl.DataFrame, show_progress=False) -> pl.DataFrame:
         note_df = note_df.with_columns(
             pl.col('note').str.replace_all(r'[^a-zA-Z0-9 \n\.]', '')
             .str.replace_all(r'\s+', ' ')
@@ -238,8 +247,12 @@ class EpilepsyModel(_BaseModel):
         all_note_feat = list(pro_feat_names.keys()) + list(neg_feat_names.keys()) + list(med_feat_names)
 
         with ray.init() as ray_context:
-            remote_tqdm = ray.remote(tqdm_ray.tqdm)
-            bar = remote_tqdm.remote(total=len(note_df), desc='Processing notes')
+            if show_progress:
+                remote_tqdm = ray.remote(tqdm_ray.tqdm)
+                bar = remote_tqdm.remote(total=len(note_df), desc='Processing notes')
+            else:
+                bar = None
+
             @ray.remote
             def process_note(text, stemmer_r, bar):
                 feature_vector = dict.fromkeys(all_note_feat, 0)
@@ -256,10 +269,12 @@ class EpilepsyModel(_BaseModel):
                         for bag, words in dictionary.items():
                             if words.issubset(stem_words):
                                 feature_vector[bag] = 1
-                bar.update.remote(1)
+                if bar:
+                    bar.update.remote(1)
                 return feature_vector
             note_feat = ray.get([process_note.remote(text, ray.put(SnowballStemmer('english')), bar) for text in note_df['note']])
-            bar.close.remote()
+            if bar:
+                bar.close.remote()
 
         note_feat = pl.DataFrame(note_feat)
         for col1, col2 in kw_config['join_columns']:
@@ -277,10 +292,11 @@ class EpilepsyModel(_BaseModel):
         return note_feat
     
     def predict(self, feat : pl.DataFrame) -> pl.DataFrame:
-        logging.info(f"Prediction started at {datetime.now()}")
-        logging.info('Getting predictions')
+        _start = time.time()
+        logger.info(f"Prediction started at {datetime.now().strftime('%H:%M:%S')}")
         pred = self.model.predict_proba(feat.select(self.config['parameters']['final_cols']))
         pred = pl.DataFrame(pred, schema=['prob_NO', 'prob_YES'], orient='row')
+        logger.info(f'Using suggested threshold of {self.config["parameters"]["threshold"]}')
         pred = feat.select(pl.all().exclude(self.config['parameters']['final_cols'])).hstack(
             pred.with_columns(
                 pl.when(pl.col('prob_YES') > self.config['parameters']['threshold'])
@@ -289,7 +305,7 @@ class EpilepsyModel(_BaseModel):
                 .alias('prediction')
             )
         )
-        logging.info(f"Prediction finished at {datetime.now()}")
+        logger.info(f"Prediction finished in {time.time() - _start:.2f}s")
         return pred
     
     def evaluate(self, data: Dict[str, pl.DataFrame], ground_truth: pl.DataFrame):

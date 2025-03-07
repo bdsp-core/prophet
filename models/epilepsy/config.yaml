@@ -18,7 +18,7 @@ schema:
     note : !pl String
     date : !pl Date
 parameters:
-  threshold: 0.39
+  threshold: 0.3865
   icd:
     epilepsy_and_recurrent_seizures : ^G40.*|^345.*|^Q04\.?3|^R56\.?9|^742\.?4
     convulsions_seizures : ^780\.?39|^R56.*
