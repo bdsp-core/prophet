@@ -173,4 +173,4 @@ tests/
 # Built Visual Studio Code Extensions
 *.vsix
 
-models/archive/
+**/models/archive/

@@ -6,12 +6,12 @@ import logging
 import time
 from datetime import datetime
 # TODO: enforce typing via pydantic?
-from models._modelcreator import _ModelCreator
+from .models._modelcreator import _ModelCreator
 logger = logging.getLogger(__name__)
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-class EHRPredict:
+class Prophet:
     def __init__(self) -> None:
         self.model_creator = _ModelCreator()
 

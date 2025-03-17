@@ -90,7 +90,7 @@ class DataFrameSchema:
         return errors, converted_df
 
 def validate_dataframe(df: pl.DataFrame, schema: Dict[str, pl.DataType], 
-                      force_casting: bool = False) -> Optional[pl.DataFrame]:
+                      force_casting: bool = False, name: str = None) -> Optional[pl.DataFrame]:
     """
     Validate a DataFrame against a schema and raise an exception if invalid
     
@@ -126,6 +126,9 @@ def validate_dataframe(df: pl.DataFrame, schema: Dict[str, pl.DataType],
     errors, converted_df = validator.validate(df, force_casting)
     
     if errors:
-        raise SchemaValidationError("\n".join(errors))
+        raise SchemaValidationError(
+            (f"'{name}' dataframe had error(s):\n" if name else "") +
+            "\n".join(errors)
+        )
         
     return converted_df if force_casting else None

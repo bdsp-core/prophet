@@ -1,4 +1,4 @@
-model_path: models/epilepsy/epilepsy_model.joblib
+model_path: epilepsy_model.joblib
 credits: Fernandes, M., Cardall, A., Jing, J., Ge, W., Moura, L. M. V. R., Jacobs, C., McGraw, C., Zafar, S. F., & Westover, M. B. (2023). Identification of patients with epilepsy using automated electronic health records phenotyping. Epilepsia, 64(6), 1472–1481. https://doi.org/10.1111/epi.17589
 schema:
   demo:

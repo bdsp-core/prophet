@@ -1,7 +1,7 @@
 from typing import List, Dict
 import polars as pl
 import logging
-from base._basemodel import _BaseModel
+from ..base._basemodel import _BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -10,8 +10,8 @@ class _ModelCreator:
     
     # Model registry maps model name to (module_path, class_name)
     _model_registry = {
-        "epilepsy": ("models.epilepsy.predictor", "EpilepsyModel"),
-        "congestive_heart_failure": ("models.chf.predictor", "CHFModel"),
+        "epilepsy": (".models.epilepsy.predictor", "EpilepsyModel"),
+        "congestive_heart_failure": (".models.chf.predictor", "CHFModel"),
         # Add more models here following the pattern: "model_name": ("module.path", "ClassName")
     }
     
@@ -35,7 +35,7 @@ class _ModelCreator:
         try:
             # Dynamically import the module and class
             import importlib
-            module = importlib.import_module(module_path)
+            module = importlib.import_module(module_path, 'prophet')
             model_class = getattr(module, class_name)
             
             # Instantiate the model
@@ -67,7 +67,7 @@ class _ModelCreator:
             # Dynamically import model class
             import importlib
             module_path, class_name = cls._model_registry[model_name]
-            module = importlib.import_module(module_path)
+            module = importlib.import_module(module_path, 'prophet')
             model_class = getattr(module, class_name)
             
             # Call static method
@@ -86,7 +86,7 @@ class _ModelCreator:
             # Dynamically import model class
             import importlib
             module_path, class_name = cls._model_registry[model_name]
-            module = importlib.import_module(module_path)
+            module = importlib.import_module(module_path, 'prophet')
             model_class = getattr(module, class_name)
             
             # Call static method

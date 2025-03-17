@@ -1,4 +1,4 @@
-from base._basemodel import _BaseModel
+from ...base._basemodel import _BaseModel
 import logging
 from typing import Dict, Any
 import polars as pl
@@ -10,11 +10,13 @@ import joblib
 from ray.experimental import tqdm_ray
 from datetime import datetime
 import time
+import importlib.resources
 
 logger = logging.getLogger(__name__)
 
 class EpilepsyModel(_BaseModel):
-    DEFAULT_CONFIG_PATH = 'models/epilepsy/config.yaml'
+    with importlib.resources.files("prophet.models.epilepsy").joinpath("config.yaml") as path:
+        DEFAULT_CONFIG_PATH = str(path)
 
     def __init__(self, config_path = None):
         if config_path is None:
@@ -48,7 +50,8 @@ class EpilepsyModel(_BaseModel):
 
     def load_model(self, model_path: str):
         logger.info(f"Loading model from {model_path}")
-        return joblib.load(model_path)
+        with importlib.resources.files("prophet.models.epilepsy").joinpath(model_path) as path:
+            return joblib.load(path)
 
     def preprocess(self, data: Dict[str, pl.DataFrame], show_progress=False, force_casting=False) -> Dict[str, pl.DataFrame]:
         preproc_start = time.time()
@@ -58,7 +61,7 @@ class EpilepsyModel(_BaseModel):
         feat = data['note'].select(['id', 'date']).unique()
         logger.info(f'Generating features for n = {len(feat)}')
 
-        # preliminary filter by just ids
+        # preliminary filter by ids
         data['demo'] = data['demo'].filter(pl.col('id').is_in(feat['id'].unique()))
         data['icd'] = data['icd'].filter(pl.col('id').is_in(feat['id'].unique()))
         data['med'] = data['med'].filter(pl.col('id').is_in(feat['id'].unique()))
@@ -101,7 +104,7 @@ class EpilepsyModel(_BaseModel):
             note_feat,
             on=['id', 'date'],
             how='left'
-        ).select(['id', 'date'] + self.config['parameters']['final_cols'])
+        ).select(['id', 'date'] + self.config['parameters']['final_cols']).drop_nulls()
 
         logger.info(f"Preprocessing finished in {time.time() - preproc_start:.2f}s")
         return feat
@@ -109,12 +112,12 @@ class EpilepsyModel(_BaseModel):
     def _preprocess_demo(self, demo_df: pl.DataFrame, feat: pl.DataFrame) -> pl.DataFrame:
         # Ensure unique rows for each 'id'
         unique_demo_df = demo_df.unique()
-        id_counts = unique_demo_df['id'].value_counts().sort('count')
-        dup_vals = id_counts.filter(pl.col('count').max() > 1)
+        id_counts = unique_demo_df['id'].value_counts()
+        dup_vals = id_counts.filter(pl.col('count') > 1)
         if not dup_vals.is_empty():
             raise ValueError(f"Duplicate non-unique 'id' values found in demo data: {dup_vals['id'].to_list()}")
         if len(unique_demo_df['id'].unique()) != len(feat['id'].unique()):
-            logging.warning(f"Missing demo info for ids: {set(demo_df['id']) - set(feat['id'])}")
+            logging.warning(f"Missing demo info for id(s): {set(feat['id']) - set(demo_df['id'])}\nThese will be removed from the dataset.")
         
         demo_feat = feat.join(
             unique_demo_df,
@@ -124,7 +127,12 @@ class EpilepsyModel(_BaseModel):
             pl.col('id'),
             pl.col('date'),
             (pl.col('date').dt.year() - pl.col('date_of_birth').dt.year()).alias('age'),
-            pl.when((pl.col('sex').str.to_lowercase() == 'm') | (pl.col('sex').str.to_lowercase() == 'male')).then(1).otherwise(0).alias('sex')
+            pl.when((pl.col('sex').str.to_lowercase() == 'm') | (pl.col('sex').str.to_lowercase() == 'male'))
+            .then(1)
+            .when(pl.col('sex').is_null())
+            .then(None)
+            .otherwise(0)
+            .alias('sex')
         )
 
         return demo_feat
@@ -292,6 +300,15 @@ class EpilepsyModel(_BaseModel):
         return note_feat
     
     def predict(self, feat : pl.DataFrame) -> pl.DataFrame:
+        """
+        Run the model on the provided features.
+        
+        Args:
+            feat: DataFrame with features
+            
+        Returns:
+            DataFrame with predictions
+        """
         _start = time.time()
         logger.info(f"Prediction started at {datetime.now().strftime('%H:%M:%S')}")
         pred = self.model.predict_proba(feat.select(self.config['parameters']['final_cols']))

@@ -2,8 +2,9 @@ from abc import ABC, abstractmethod
 from typing import Dict, List, Any
 import polars as pl
 import yaml
-from utils.preprocessing import validate_dataframe
+from ..utils.preprocessing import validate_dataframe
 import warnings
+import importlib.resources
 
 class _BaseModel(ABC):
     DEFAULT_CONFIG_PATH = None
@@ -98,9 +99,9 @@ class _BaseModel(ABC):
             for name, schema in data_format.items():
                 if name in data:
                     if force_casting:
-                        data[name] = validate_dataframe(data[name], schema, force_casting)
+                        data[name] = validate_dataframe(data[name], schema, force_casting, name)
                     else:
-                        validate_dataframe(data[name], schema)
+                        validate_dataframe(data[name], schema, force_casting, name)
                 else:
                     raise ValueError(f"Missing required dataframe: {name}")
         else:
