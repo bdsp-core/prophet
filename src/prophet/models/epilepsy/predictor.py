@@ -50,6 +50,7 @@ class EpilepsyModel(_BaseModel):
 
     def load_model(self, model_path: str):
         logger.info(f"Loading model from {model_path}")
+        # TODO: fix for user loading their own model?
         with importlib.resources.files("prophet.models.epilepsy").joinpath(model_path) as path:
             return joblib.load(path)
 
@@ -117,7 +118,7 @@ class EpilepsyModel(_BaseModel):
         if not dup_vals.is_empty():
             raise ValueError(f"Duplicate non-unique 'id' values found in demo data: {dup_vals['id'].to_list()}")
         if len(unique_demo_df['id'].unique()) != len(feat['id'].unique()):
-            logging.warning(f"Missing demo info for id(s): {set(feat['id']) - set(demo_df['id'])}\nThese will be removed from the dataset.")
+            logger.warning(f"Missing demo info for id(s): {set(feat['id']) - set(demo_df['id'])}\nThese will be removed from the dataset.")
         
         demo_feat = feat.join(
             unique_demo_df,
