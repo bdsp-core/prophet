@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, Tuple, Set
 import polars as pl
 import logging
 from ..base._basemodel import _BaseModel
@@ -8,24 +8,33 @@ logger = logging.getLogger(__name__)
 class _ModelCreator:
     """Internal class responsible for model creation and management"""
     
-    # Model registry maps model name to (module_path, class_name)
+    # Primary model registry maps canonical model name to (module_path, class_name)
     _model_registry = {
         "epilepsy": (".models.epilepsy.predictor", "EpilepsyModel"),
         "congestive_heart_failure": (".models.chf.predictor", "CHFModel"),
         # Add more models here following the pattern: "model_name": ("module.path", "ClassName")
     }
     
+    # Alias registry maps alternative names to canonical model names
+    _model_aliases = {
+        "chf": "congestive_heart_failure",
+        # Add more aliases here following the pattern: "alias": "canonical_name"
+    }
+    
     def __init__(self):
         self._model_instances = {}
         
     def get_model(self, model_name: str) -> _BaseModel:
-        """Get or create model instance"""
-        if model_name not in self._model_instances:
-            self._model_instances[model_name] = self._create_model(model_name)
-        return self._model_instances[model_name]
+        """Get or create model instance using canonical name or alias"""
+        # Resolve alias to canonical name if necessary
+        canonical_name = self._resolve_model_name(model_name)
+        
+        if canonical_name not in self._model_instances:
+            self._model_instances[canonical_name] = self._create_model(canonical_name)
+        return self._model_instances[canonical_name]
     
     def _create_model(self, model_name: str):
-        """Create a new model instance dynamically"""
+        """Create a new model instance dynamically using canonical name"""
         if model_name not in self._model_registry:
             raise ValueError(f"Unknown model: {model_name}")
             
@@ -58,75 +67,119 @@ class _ModelCreator:
             raise RuntimeError(f"Failed to initialize model '{model_name}'. Error: {str(e)}") from e
     
     @classmethod
+    def _resolve_model_name(cls, model_name: str) -> str:
+        """Convert alias to canonical model name if necessary"""
+        return cls._model_aliases.get(model_name, model_name)
+    
+    @classmethod
     def get_data_format(cls, model_name: str) -> Dict:
-        """Get required data format for a model"""
-        if model_name not in cls._model_registry:
+        """Get required data format for a model using canonical name or alias"""
+        canonical_name = cls._resolve_model_name(model_name)
+        
+        if canonical_name not in cls._model_registry:
             raise ValueError(f"Unknown model: {model_name}")
             
         try:
             # Dynamically import model class
             import importlib
-            module_path, class_name = cls._model_registry[model_name]
+            module_path, class_name = cls._model_registry[canonical_name]
             module = importlib.import_module(module_path, 'prophet')
             model_class = getattr(module, class_name)
             
             # Call static method
             return model_class.get_data_format()
         except Exception as e:
-            logger.error(f"Error getting data format for {model_name}: {str(e)}")
-            raise RuntimeError(f"Failed to get data format for '{model_name}'. Error: {str(e)}") from e
+            logger.error(f"Error getting data format for {canonical_name}: {str(e)}")
+            raise RuntimeError(f"Failed to get data format for '{canonical_name}'. Error: {str(e)}") from e
     
     @classmethod
     def get_credits(cls, model_name: str) -> Dict:
-        """Get credits/attribution information for a model"""
-        if model_name not in cls._model_registry:
+        """Get credits/attribution information for a model using canonical name or alias"""
+        canonical_name = cls._resolve_model_name(model_name)
+        
+        if canonical_name not in cls._model_registry:
             raise ValueError(f"Unknown model: {model_name}")
             
         try:
             # Dynamically import model class
             import importlib
-            module_path, class_name = cls._model_registry[model_name]
+            module_path, class_name = cls._model_registry[canonical_name]
             module = importlib.import_module(module_path, 'prophet')
             model_class = getattr(module, class_name)
             
             # Call static method
             return model_class.get_credits()
         except Exception as e:
-            logger.error(f"Error getting data format for {model_name}: {str(e)}")
-            raise RuntimeError(f"Failed to get data format for '{model_name}'. Error: {str(e)}") from e
+            logger.error(f"Error getting credits for {canonical_name}: {str(e)}")
+            raise RuntimeError(f"Failed to get credits for '{canonical_name}'. Error: {str(e)}") from e
     
     @classmethod
     def get_available_models(cls) -> List[str]:
-        """Get list of all available models"""
+        """Get list of all available canonical model names"""
         return list(cls._model_registry.keys())
     
     @classmethod
+    def get_all_model_names(cls) -> List[str]:
+        """Get list of all available model names including aliases"""
+        return list(cls._model_registry.keys()) + list(cls._model_aliases.keys())
+    
+    @classmethod
     def is_valid_model(cls, model_name: str) -> bool:
-        """Check if a model name is valid"""
-        return model_name in cls._model_registry
+        """Check if a model name (canonical or alias) is valid"""
+        canonical_name = cls._resolve_model_name(model_name)
+        return canonical_name in cls._model_registry
     
     @classmethod
     def get_model_info(cls, model_name: str) -> Dict[str, str]:
-        """Get information about a model from the registry"""
-        if model_name not in cls._model_registry:
+        """Get information about a model from the registry using canonical name or alias"""
+        canonical_name = cls._resolve_model_name(model_name)
+        
+        if canonical_name not in cls._model_registry:
             raise ValueError(f"Unknown model: {model_name}")
             
-        module_path, class_name = cls._model_registry[model_name]
-        return {
-            "name": model_name,
+        module_path, class_name = cls._model_registry[canonical_name]
+        info = {
+            "name": canonical_name,
             "module_path": module_path,
             "class_name": class_name
         }
+        
+        # Add alias information if this is a canonical name with aliases
+        aliases = [alias for alias, canon in cls._model_aliases.items() if canon == canonical_name]
+        if aliases:
+            info["aliases"] = aliases
+        
+        # Add canonical name if this was looked up via an alias
+        if model_name != canonical_name:
+            info["canonical_name"] = canonical_name
+            info["is_alias"] = True
+        
+        return info
     
     @classmethod
-    def register_model(cls, model_name: str, module_path: str, class_name: str):
-        """Register a new model in the registry"""
+    def register_model(cls, model_name: str, module_path: str, class_name: str, aliases: List[str] = None):
+        """Register a new model in the registry with optional aliases"""
         cls._model_registry[model_name] = (module_path, class_name)
         logger.info(f"Registered model: {model_name} -> {module_path}.{class_name}")
+        
+        # Register any aliases
+        if aliases:
+            for alias in aliases:
+                cls._model_aliases[alias] = model_name
+                logger.info(f"Registered alias: {alias} -> {model_name}")
+    
+    @classmethod
+    def register_alias(cls, alias: str, canonical_name: str):
+        """Register a new alias for an existing model"""
+        if canonical_name not in cls._model_registry:
+            raise ValueError(f"Cannot create alias for unknown model: {canonical_name}")
+        
+        cls._model_aliases[alias] = canonical_name
+        logger.info(f"Registered alias: {alias} -> {canonical_name}")
     
     @classmethod
     def get_compatible_models(cls, data_dict: Dict[str, pl.DataFrame]) -> List[str]:
-        """Find models compatible with the provided data"""
+        """Find models compatible with the provided data (returns canonical names only)"""
         compatible_models = []
         
         # Get available dataframes
