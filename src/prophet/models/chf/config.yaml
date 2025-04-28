@@ -1,4 +1,4 @@
-model_path: final_model_RandomForest.pkl
+model_path: chf_model.joblib
 credits: 'Sumsion, Daniel & Davis, Elijah & Fernandes, Marta & Wei, Ruoqi & Milde, Rebecca & Veltink, Jet & Kong, Wan-Yee & Xiong, Yiwen & Rao, Samvrit & Westover, Tara & Petersen, Lydia & Turley, Niels & Singh, Arjun & Buss, Stephanie & Mukerji, Shibani & Zafar, Sahar & Das, Sudeshna & Moura Junior, Valdery & Ghanta, Manohar & Sun, Haoqi. (2024). Identification of Patients with Congestive Heart Failure from Electronic Health Records: A Retrospective Study of Two Hospitals (Preprint). JMIR Medical Informatics. 10.2196/64113.' 
 schema:
   icd:

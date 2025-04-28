@@ -12,12 +12,14 @@ class _ModelCreator:
     _model_registry = {
         "epilepsy": (".models.epilepsy.predictor", "EpilepsyModel"),
         "congestive_heart_failure": (".models.chf.predictor", "CHFModel"),
+        "parkinsons_disease": (".models.pd.predictor", "PDModel"),
         # Add more models here following the pattern: "model_name": ("module.path", "ClassName")
     }
     
     # Alias registry maps alternative names to canonical model names
     _model_aliases = {
         "chf": "congestive_heart_failure",
+        "pd": "parkinsons_disease",
         # Add more aliases here following the pattern: "alias": "canonical_name"
     }
     

@@ -21,14 +21,15 @@ dependencies = [
     "scikit-learn",
     "nltk",
     "ray",
-    "joblib"
+    "joblib",
+    "pyarrow",
 ]
 
 [tool.hatch.build.sources]
 "src" = ""
 
-[tool.hatch.build.targets.wheel.include]
-"src/prophet/models/epilepsy/*" = "prophet/models/epilepsy"
+[tool.hatch.build.targets.wheel]
+include = ["src/prophet/models/epilepsy/*"]
 
 [project.urls]
 "Homepage" = "https://github.com/bdsp-core/prophet/"

@@ -15,6 +15,16 @@ class Prophet:
     def __init__(self) -> None:
         self.model_creator = _ModelCreator()
 
+    def get_available_models(self) -> List[str]:
+        """
+        Get list of available phenotype models
+        
+        Returns:
+        --------
+        List of model names
+        """
+        return _ModelCreator.get_available_models()
+
     def get_data_format(self, phenotype: str) -> Dict:
         """
         Get the expected data format for a phenotype model
