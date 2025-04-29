@@ -13,6 +13,7 @@ class _ModelCreator:
         "epilepsy": (".models.epilepsy.predictor", "EpilepsyModel"),
         "congestive_heart_failure": (".models.chf.predictor", "CHFModel"),
         "parkinsons_disease": (".models.pd.predictor", "PDModel"),
+        "cardiac_arrest": (".models.ca.predictor", "CAModel")
         # Add more models here following the pattern: "model_name": ("module.path", "ClassName")
     }
     
@@ -20,6 +21,7 @@ class _ModelCreator:
     _model_aliases = {
         "chf": "congestive_heart_failure",
         "pd": "parkinsons_disease",
+        "ca": "cardiac_arrest"
         # Add more aliases here following the pattern: "alias": "canonical_name"
     }
     
