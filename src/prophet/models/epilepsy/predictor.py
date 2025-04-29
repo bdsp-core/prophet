@@ -57,7 +57,7 @@ class EpilepsyModel(_BaseModel):
     def preprocess(self, data: Dict[str, pl.DataFrame], show_progress=False, force_casting=False) -> Dict[str, pl.DataFrame]:
         preproc_start = time.time()
         logger.info(f"Preprocessing started at {datetime.now().strftime('%H:%M:%S')}")
-        data = super().preprocess(data, force_casting)
+        data = super().preprocess(data, show_progress, force_casting)
 
         feat = data['note'].select(['id', 'date']).unique()
         logger.info(f'Generating features for n = {len(feat)}')

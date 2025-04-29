@@ -92,7 +92,7 @@ class _BaseModel(ABC):
         config = cls.load_config(config_path)
         return config.get('credits', {})
 
-    def preprocess(self, data, force_casting = False) -> Dict[str, pl.DataFrame]:
+    def preprocess(self, data, show_progress=False, force_casting=False) -> Dict[str, pl.DataFrame]:
         '''Check that data is in the correct format, removing any unnecessary or empty columns/rows, and converting to proper types.'''
         data_format = self.get_data_format()
         if data_format:

@@ -57,7 +57,7 @@ class CHFModel(_BaseModel):
 
     def preprocess(self, data: Dict[str, pl.DataFrame], show_progress=False, force_casting=False) -> Dict[str, pl.DataFrame]:
         logger.info(f"Preprocessing started at {datetime.now()}")
-        data = super().preprocess(data, force_casting)
+        data = super().preprocess(data, show_progress, force_casting)
         data['note'] = data['note'].with_row_index()
 
         feat = data['note'].select(['index', 'id', 'date'])
