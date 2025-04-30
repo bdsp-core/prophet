@@ -13,7 +13,8 @@ class _ModelCreator:
         "epilepsy": (".models.epilepsy.predictor", "EpilepsyModel"),
         "congestive_heart_failure": (".models.chf.predictor", "CHFModel"),
         "parkinsons_disease": (".models.pd.predictor", "PDModel"),
-        "cardiac_arrest": (".models.ca.predictor", "CAModel")
+        "cardiac_arrest": (".models.ca.predictor", "CAModel"),
+        "brain_tumor": (".models.brain_tumor.predictor", "BrainTumorModel"),
         # Add more models here following the pattern: "model_name": ("module.path", "ClassName")
     }
     
