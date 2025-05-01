@@ -15,6 +15,7 @@ class _ModelCreator:
         "parkinsons_disease": (".models.pd.predictor", "PDModel"),
         "cardiac_arrest": (".models.ca.predictor", "CAModel"),
         "brain_tumor": (".models.brain_tumor.predictor", "BrainTumorModel"),
+        "subarachnoid_hemorrhage": (".models.sah.predictor", "SAHModel"),
         # Add more models here following the pattern: "model_name": ("module.path", "ClassName")
     }
     
@@ -22,7 +23,8 @@ class _ModelCreator:
     _model_aliases = {
         "chf": "congestive_heart_failure",
         "pd": "parkinsons_disease",
-        "ca": "cardiac_arrest"
+        "ca": "cardiac_arrest",
+        "sah": "subarachnoid_hemorrhage",
         # Add more aliases here following the pattern: "alias": "canonical_name"
     }
     
