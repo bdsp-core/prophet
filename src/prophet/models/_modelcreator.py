@@ -1,4 +1,4 @@
-from typing import List, Dict, Tuple, Set
+from typing import List, Dict
 import polars as pl
 import logging
 from ..base._basemodel import _BaseModel
@@ -16,6 +16,7 @@ class _ModelCreator:
         "cardiac_arrest": (".models.ca.predictor", "CAModel"),
         "brain_tumor": (".models.brain_tumor.predictor", "BrainTumorModel"),
         "subarachnoid_hemorrhage": (".models.sah.predictor", "SAHModel"),
+        "subdural_hematoma": (".models.sdh.predictor", "SDHModel"),
         # Add more models here following the pattern: "model_name": ("module.path", "ClassName")
     }
     
@@ -25,6 +26,7 @@ class _ModelCreator:
         "pd": "parkinsons_disease",
         "ca": "cardiac_arrest",
         "sah": "subarachnoid_hemorrhage",
+        "sdh": "subdural_hematoma",
         # Add more aliases here following the pattern: "alias": "canonical_name"
     }
     
