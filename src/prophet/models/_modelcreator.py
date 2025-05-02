@@ -17,6 +17,7 @@ class _ModelCreator:
         "brain_tumor": (".models.brain_tumor.predictor", "BrainTumorModel"),
         "subarachnoid_hemorrhage": (".models.sah.predictor", "SAHModel"),
         "subdural_hematoma": (".models.sdh.predictor", "SDHModel"),
+        "traumatic_brain_injury": (".models.tbi.predictor", "TBIModel"),
         # Add more models here following the pattern: "model_name": ("module.path", "ClassName")
     }
     
@@ -27,6 +28,7 @@ class _ModelCreator:
         "ca": "cardiac_arrest",
         "sah": "subarachnoid_hemorrhage",
         "sdh": "subdural_hematoma",
+        "tbi": "traumatic_brain_injury",
         # Add more aliases here following the pattern: "alias": "canonical_name"
     }
     
