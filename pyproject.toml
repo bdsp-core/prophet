@@ -23,6 +23,8 @@ dependencies = [
     "ray",
     "joblib",
     "pyarrow",
+    "seaborn",
+    "matplotlib",
 ]
 
 [tool.hatch.build.sources]

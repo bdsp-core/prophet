@@ -47,8 +47,6 @@ class BrainTumorModel(_BaseModel):
         else:
             return pred
 
-
-
     def load_model(self, model_path: str):
         logger.info(f"Loading model from {model_path}")
         # TODO: fix for user loading their own model?
