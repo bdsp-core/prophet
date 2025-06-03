@@ -22,11 +22,12 @@ class TBIModel(_BaseModel):
     else:
         raise FileNotFoundError(f"Configuration file not found: {path}")
 
-    def __init__(self, config_path = None):
+    def __init__(self, config_path=None, external_ray=False):
         if config_path is None:
             config_path = self.DEFAULT_CONFIG_PATH
         super().__init__(config_path)
-
+        self.external_ray = external_ray
+        
         try:
             nltk.data.find('tokenizers/punkt')
         except LookupError:
@@ -129,8 +130,20 @@ class TBIModel(_BaseModel):
         negate_words = set(self.config['parameters']['neg_kws'])
         strike_words = set(self.config['parameters']['strike_kws'])
 
-        ray.init()
+        ray_was_initialized = ray.is_initialized()
+        
+        if not ray_was_initialized and not self.external_ray:
+            ray.init()
+            should_shutdown = True
+        else:
+            should_shutdown = False
+
         try:
+            # Calculate batch size based on available CPUs
+            num_cpus = int(ray.available_resources().get("CPU", 1))
+            total_notes = len(note_df)
+            batch_size = max(1, total_notes // (num_cpus * 4))  # 4x more batches than CPUs for better load balancing
+            
             if show_progress:
                 remote_tqdm = ray.remote(tqdm_ray.tqdm)
                 bar = remote_tqdm.remote(total=len(note_df), desc='Processing notes')
@@ -138,33 +151,58 @@ class TBIModel(_BaseModel):
                 bar = None
 
             @ray.remote
-            def process_note(text, stemmer_r, bar):
-                feature_vector = dict.fromkeys(kw_names, 0)
-                feature_vector.update({f'{x}_neg' : 0 for x in kw_names})
-                feature_vector.update({'custom_hit_strike': 0, 'custom_hit_strike_neg': 0})
-                sentences = sent_tokenize(text)
-                for s in sentences:
-                    stem_words = set(stemmer_r.stem(word) for word in word_tokenize(s))
-                    if stem_words.intersection(strike_words) and 'head' in stem_words:
-                        if negate_words.intersection(stem_words):
-                            feature_vector['custom_hit_strike_neg'] = 1
-                        else:
-                            feature_vector['custom_hit_strike'] = 1
-                    for bag, words in kw_names.items():
-                        if words.issubset(stem_words):
+            def process_note_batch(text_batch, stemmer_r, bar):
+                """Process a batch of notes instead of individual notes"""
+                batch_results = []
+                
+                for text in text_batch:
+                    feature_vector = dict.fromkeys(kw_names, 0)
+                    feature_vector.update({f'{x}_neg' : 0 for x in kw_names})
+                    feature_vector.update({'custom_hit_strike': 0, 'custom_hit_strike_neg': 0})
+                    sentences = sent_tokenize(text)
+                    for s in sentences:
+                        stem_words = set(stemmer_r.stem(word) for word in word_tokenize(s))
+                        if stem_words.intersection(strike_words) and 'head' in stem_words:
                             if negate_words.intersection(stem_words):
-                                feature_vector[f'{bag}_neg'] = 1
+                                feature_vector['custom_hit_strike_neg'] = 1
                             else:
-                                feature_vector[bag] = 1
-                if bar:
-                    bar.update.remote(1)
-                return feature_vector                    
+                                feature_vector['custom_hit_strike'] = 1
+                        for bag, words in kw_names.items():
+                            if words.issubset(stem_words):
+                                if negate_words.intersection(stem_words):
+                                    feature_vector[f'{bag}_neg'] = 1
+                                else:
+                                    feature_vector[bag] = 1
+                    batch_results.append(feature_vector)
+                    
+                    if bar:
+                        bar.update.remote(1)
+                return batch_results                    
             
-            note_feat = ray.get([process_note.remote(text, ray.put(SnowballStemmer('english')), bar) for text in note_df['note']])
+            # Split notes into batches
+            notes_list = note_df['note'].to_list()
+            note_batches = [notes_list[i:i + batch_size] for i in range(0, len(notes_list), batch_size)]
+            
+            logger.info(f"Processing {total_notes} notes in {len(note_batches)} batches of ~{batch_size} notes each using {num_cpus} CPUs")
+            
+            # Create one task per batch instead of per note
+            futures = [process_note_batch.remote(batch, ray.put(SnowballStemmer('english')), bar) 
+                    for batch in note_batches]
+            
+            # Get results and flatten the list of lists
+            batch_results = ray.get(futures)
+            note_feat = [item for batch in batch_results for item in batch]
+            
             if bar:
                 bar.close.remote()
+                
+        except KeyboardInterrupt:
+            # Handle interruption gracefully
+            raise
         finally:
-            ray.shutdown()
+            # Only shutdown Ray if we initialized it AND we're not using external Ray
+            if should_shutdown:
+                ray.shutdown()
             gc.collect()
             
         note_feat = pl.DataFrame(note_feat)

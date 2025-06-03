@@ -23,11 +23,12 @@ class PDModel(_BaseModel):
     else:
         raise FileNotFoundError(f"Configuration file not found: {path}")
 
-    def __init__(self, config_path = None):
+    def __init__(self, config_path=None, external_ray=False):
         if config_path is None:
             config_path = self.DEFAULT_CONFIG_PATH
         super().__init__(config_path)
-
+        self.external_ray = external_ray
+        
         try:
             nltk.data.find('tokenizers/punkt')
         except LookupError:
@@ -166,11 +167,23 @@ class PDModel(_BaseModel):
         )
         kw_names = {x : set(x.split(' ')) for x in self.config['parameters']['kws']}
 
-        ray.init()
+        ray_was_initialized = ray.is_initialized()
+        
+        if not ray_was_initialized and not self.external_ray:
+            ray.init()
+            should_shutdown = True
+        else:
+            should_shutdown = False
+
         try:
+            # Calculate batch size based on available CPUs
+            num_cpus = int(ray.available_resources().get("CPU", 1))
+            total_notes = len(note_df)
+            batch_size = max(1, total_notes // (num_cpus * 4))  # 4x more batches than CPUs for better load balancing
+            
             if show_progress:
                 remote_tqdm = ray.remote(tqdm_ray.tqdm)
-                bar = remote_tqdm.remote(total=len(note_df), desc='Processing notes')
+                bar = remote_tqdm.remote(total=total_notes, desc='Processing notes')
             else:
                 bar = None
 
@@ -192,66 +205,92 @@ class PDModel(_BaseModel):
                             for phrase in negation_triggers['pseudo']]
             
             @ray.remote
-            def process_note(text, stemmer_r, bar, stemmed_negation):
-                feature_vector = dict.fromkeys(kw_names, 0)
-                feature_vector.update({f'{x}_neg': 0 for x in kw_names})
+            def process_note_batch(text_batch, stemmer_r, bar):
+                """Process a batch of notes instead of individual notes"""
+                batch_results = []
                 
-                # Window size for negation scope
-                window_size = 5  # words
-                
-                sentences = sent_tokenize(text)
-                for s in sentences:
-                    words = word_tokenize(s)
-                    stemmed_words = [stemmer_r.stem(word) for word in words]
+                for text in text_batch:
+                    feature_vector = dict.fromkeys(kw_names, 0)
+                    feature_vector.update({f'{x}_neg': 0 for x in kw_names})
                     
-                    # Find negation triggers with sliding window to catch multi-word phrases
-                    neg_indices = []
-                    for i in range(len(stemmed_words)):
-                        # Check for single-word triggers
-                        if stemmed_words[i] in stemmed_negation['preceding']:
-                            neg_indices.append((i, min(i + window_size, len(stemmed_words))))
-                        elif stemmed_words[i] in stemmed_negation['following']:
-                            neg_indices.append((max(0, i - window_size), i))
+                    # Window size for negation scope
+                    window_size = 5  # words
+                    
+                    sentences = sent_tokenize(text)
+                    for s in sentences:
+                        words = word_tokenize(s)
+                        stemmed_words = [stemmer_r.stem(word) for word in words]
                         
-                        # Check for multi-word triggers
-                        for j in range(1, min(4, len(stemmed_words) - i)):  # Check phrases up to 4 words
-                            phrase = ' '.join(stemmed_words[i:i+j])
-                            if phrase in stemmed_negation['preceding']:
-                                neg_indices.append((i+j-1, min(i+j-1 + window_size, len(stemmed_words))))
-                            elif phrase in stemmed_negation['following']:
+                        # Find negation triggers with sliding window to catch multi-word phrases
+                        neg_indices = []
+                        for i in range(len(stemmed_words)):
+                            # Check for single-word triggers
+                            if stemmed_words[i] in stemmed_negation['preceding']:
+                                neg_indices.append((i, min(i + window_size, len(stemmed_words))))
+                            elif stemmed_words[i] in stemmed_negation['following']:
                                 neg_indices.append((max(0, i - window_size), i))
-                            elif phrase in stemmed_negation['pseudo']:  # Remove negation if pseudo-negation
-                                neg_indices = [idx for idx in neg_indices if not (idx[0] <= i and idx[1] >= i+j-1)]
-                    
-                    # Check for keywords
-                    for bag, kw_set in kw_names.items():
-                        # Find indices where keywords appear
-                        kw_indices = []
-                        for i, stemmed in enumerate(stemmed_words):
-                            if stemmed in kw_set:
-                                kw_indices.append(i)
-                        
-                        if kw_indices:
-                            # Check if any keyword is within negation scope
-                            is_negated = any(
-                                any(neg_start <= kw_idx <= neg_end for neg_start, neg_end in neg_indices)
-                                for kw_idx in kw_indices
-                            )
                             
-                            if is_negated:
-                                feature_vector[f'{bag}_neg'] = 1
-                            else:
-                                feature_vector[bag] = 1
+                            # Check for multi-word triggers
+                            for j in range(1, min(4, len(stemmed_words) - i)):  # Check phrases up to 4 words
+                                phrase = ' '.join(stemmed_words[i:i+j])
+                                if phrase in stemmed_negation['preceding']:
+                                    neg_indices.append((i+j-1, min(i+j-1 + window_size, len(stemmed_words))))
+                                elif phrase in stemmed_negation['following']:
+                                    neg_indices.append((max(0, i - window_size), i))
+                                elif phrase in stemmed_negation['pseudo']:  # Remove negation if pseudo-negation
+                                    neg_indices = [idx for idx in neg_indices if not (idx[0] <= i and idx[1] >= i+j-1)]
+                        
+                        # Check for keywords
+                        for bag, kw_set in kw_names.items():
+                            # Find indices where keywords appear
+                            kw_indices = []
+                            for i, stemmed in enumerate(stemmed_words):
+                                if stemmed in kw_set:
+                                    kw_indices.append(i)
+                            
+                            if kw_indices:
+                                # Check if any keyword is within negation scope
+                                is_negated = any(
+                                    any(neg_start <= kw_idx <= neg_end for neg_start, neg_end in neg_indices)
+                                    for kw_idx in kw_indices
+                                )
                                 
-                if bar:
-                    bar.update.remote(1)
-                return feature_vector
+                                if is_negated:
+                                    feature_vector[f'{bag}_neg'] = 1
+                                else:
+                                    feature_vector[bag] = 1
+                    batch_results.append(feature_vector)
+                    
+                    # Update progress for each note in the batch
+                    if bar:
+                        bar.update.remote(1)
+                
+                return batch_results
+
+            # Split notes into batches
+            notes_list = note_df['note'].to_list()
+            note_batches = [notes_list[i:i + batch_size] for i in range(0, len(notes_list), batch_size)]
             
-            note_feat = ray.get([process_note.remote(text, stemmer, bar, stemmed_negation) for text in note_df['note']])
+            logger.info(f"Processing {total_notes} notes in {len(note_batches)} batches of ~{batch_size} notes each using {num_cpus} CPUs")
+            
+            # Create one task per batch instead of per note
+            futures = [process_note_batch.remote(batch, ray.put(SnowballStemmer('english')), bar) 
+                    for batch in note_batches]
+            
+            # Get results and flatten the list of lists
+            batch_results = ray.get(futures)
+            note_feat = [item for batch in batch_results for item in batch]
+            
             if bar:
                 bar.close.remote()
+                
+        except KeyboardInterrupt:
+            # Handle interruption gracefully
+            raise
         finally:
-            ray.shutdown()
+            # Only shutdown Ray if we initialized it AND we're not using external Ray
+            if should_shutdown:
+                ray.shutdown()
             gc.collect()
 
         note_feat = pl.DataFrame(note_feat)
