@@ -37,8 +37,9 @@ class _ModelCreator:
         # Add more aliases here following the pattern: "alias": "canonical_name"
     }
     
-    def __init__(self):
+    def __init__(self, external_ray: bool = False):
         self._model_instances = {}
+        self.external_ray = external_ray  # Flag to indicate if Ray is managed externally
         
     def get_model(self, model_name: str) -> _BaseModel:
         """Get or create model instance using canonical name or alias"""
@@ -64,7 +65,7 @@ class _ModelCreator:
             model_class = getattr(module, class_name)
             
             # Instantiate the model
-            return model_class()
+            return model_class(external_ray=self.external_ray)
         except ImportError as e:
             # Module could not be imported
             logger.error(f"Failed to import module {module_path} for model {model_name}: {str(e)}")

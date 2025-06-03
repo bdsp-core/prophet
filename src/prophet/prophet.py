@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 class Prophet:
-    def __init__(self) -> None:
-        self.model_creator = _ModelCreator()
+    def __init__(self, external_ray: bool = False) -> None:
+        self.model_creator = _ModelCreator(external_ray=external_ray)
 
     def get_available_models(self) -> List[str]:
         """

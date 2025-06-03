@@ -22,11 +22,12 @@ class BrainTumorModel(_BaseModel):
     else:
         raise FileNotFoundError(f"Configuration file not found: {path}")
 
-    def __init__(self, config_path = None):
+    def __init__(self, config_path=None, external_ray=False):
         if config_path is None:
             config_path = self.DEFAULT_CONFIG_PATH
         super().__init__(config_path)
-
+        self.external_ray = external_ray  # Flag to indicate if Ray is managed externally
+        
         try:
             nltk.data.find('tokenizers/punkt')
         except LookupError:
@@ -90,42 +91,50 @@ class BrainTumorModel(_BaseModel):
         negate_words = set(self.config['parameters']['neg_kws'])
 
 
-        with ray.init():
-            try:
-                if show_progress:
-                    remote_tqdm = ray.remote(tqdm_ray.tqdm)
-                    bar = remote_tqdm.remote(total=len(note_df), desc='Processing notes')
-                else:
-                    bar = None
+        ray_was_initialized = ray.is_initialized()
+        
+        if not ray_was_initialized and not self.external_ray:
+            ray.init()
+            should_shutdown = True
+        else:
+            should_shutdown = False
 
-                @ray.remote
-                def process_note(text, stemmer_r, bar):
-                    feature_vector = dict.fromkeys(kw_names, 0)
-                    feature_vector.update({f'{x}_neg' : 0 for x in kw_names})
-                    sentences = sent_tokenize(text)
-                    for s in sentences:
-                        stem_words = set(stemmer_r.stem(word) for word in word_tokenize(s))
-                        for bag, words in kw_names.items():
-                            if words.issubset(stem_words):
-                                if negate_words.intersection(stem_words):
-                                    feature_vector[f'{bag}_neg'] = 1
-                                else:
-                                    feature_vector[bag] = 1
-                    if bar:
-                        bar.update.remote(1)
-                    return feature_vector                    
+        try:
+            if show_progress:
+                remote_tqdm = ray.remote(tqdm_ray.tqdm)
+                bar = remote_tqdm.remote(total=len(note_df), desc='Processing notes')
+            else:
+                bar = None
 
-                futures = [process_note.remote(text, ray.put(SnowballStemmer('english')), bar) for text in note_df['note']]
-                note_feat = ray.get(futures)
+            @ray.remote
+            def process_note(text, stemmer_r, bar):
+                feature_vector = dict.fromkeys(kw_names, 0)
+                feature_vector.update({f'{x}_neg' : 0 for x in kw_names})
+                sentences = sent_tokenize(text)
+                for s in sentences:
+                    stem_words = set(stemmer_r.stem(word) for word in word_tokenize(s))
+                    for bag, words in kw_names.items():
+                        if words.issubset(stem_words):
+                            if negate_words.intersection(stem_words):
+                                feature_vector[f'{bag}_neg'] = 1
+                            else:
+                                feature_vector[bag] = 1
                 if bar:
-                    bar.close.remote()
-            except KeyboardInterrupt:
-                for future in futures:
-                    ray.cancel(future, force=True)
-                raise
-            finally:
+                    bar.update.remote(1)
+                return feature_vector                    
+
+            futures = [process_note.remote(text, ray.put(SnowballStemmer('english')), bar) for text in note_df['note']]
+            note_feat = ray.get(futures)
+            if bar:
+                bar.close.remote()
+        except KeyboardInterrupt:
+            # Handle interruption gracefully
+            raise
+        finally:
+            # Only shutdown Ray if we initialized it AND we're not using external Ray
+            if should_shutdown:
                 ray.shutdown()
-                gc.collect()
+            gc.collect()
             
         note_feat = pl.DataFrame(note_feat)
         note_feat = note_feat.rename({col : f'{col}_' for col in note_feat.columns})
