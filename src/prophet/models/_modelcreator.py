@@ -19,7 +19,8 @@ class _ModelCreator:
         "subdural_hematoma": (".models.sdh.predictor", "SDHModel"),
         "traumatic_brain_injury": (".models.tbi.predictor", "TBIModel"),
         "intracranial_hemorrhage": (".models.ich.predictor", "ICHModel"),
-        "ischemic_stroke": (".models.is.predictor", "ISModel"),
+        # "ischemic_stroke": (".models.is.predictor", "ISModel"),
+        "mild_cognitive_impairment": (".models.is.predictor", "ISModel"),
         # Add more models here following the pattern: "model_name": ("module.path", "ClassName")
     }
     
@@ -32,7 +33,7 @@ class _ModelCreator:
         "sdh": "subdural_hematoma",
         "tbi": "traumatic_brain_injury",
         "ich": "intracranial_hemorrhage",
-        "is": "ischemic_stroke",
+        # "is": "ischemic_stroke",
         # Add more aliases here following the pattern: "alias": "canonical_name"
     }
     

@@ -11,12 +11,16 @@ from ray.experimental import tqdm_ray
 from datetime import datetime
 import importlib.resources
 import time
+import gc
 
 logger = logging.getLogger(__name__)
 
 class BrainTumorModel(_BaseModel):
-    with importlib.resources.files("prophet.models.brain_tumor").joinpath("config.yaml") as path:
+    path = importlib.resources.files("prophet.models.brain_tumor").joinpath("config.yaml")
+    if path.exists():
         DEFAULT_CONFIG_PATH = str(path)
+    else:
+        raise FileNotFoundError(f"Configuration file not found: {path}")
 
     def __init__(self, config_path = None):
         if config_path is None:
@@ -50,8 +54,8 @@ class BrainTumorModel(_BaseModel):
     def load_model(self, model_path: str):
         logger.info(f"Loading model from {model_path}")
         # TODO: fix for user loading their own model?
-        with importlib.resources.files("prophet.models.brain_tumor").joinpath(model_path) as path:
-            return joblib.load(str(path))
+        path = importlib.resources.files("prophet.models.brain_tumor").joinpath(model_path)
+        return joblib.load(str(path))
 
     def preprocess(self, data: Dict[str, pl.DataFrame], show_progress=False, force_casting=False) -> Dict[str, pl.DataFrame]:
         logger.info(f"Preprocessing started at {datetime.now()}")
@@ -86,33 +90,42 @@ class BrainTumorModel(_BaseModel):
         negate_words = set(self.config['parameters']['neg_kws'])
 
 
-        with ray.init() as ray_context:
-            if show_progress:
-                remote_tqdm = ray.remote(tqdm_ray.tqdm)
-                bar = remote_tqdm.remote(total=len(note_df), desc='Processing notes')
-            else:
-                bar = None
+        with ray.init():
+            try:
+                if show_progress:
+                    remote_tqdm = ray.remote(tqdm_ray.tqdm)
+                    bar = remote_tqdm.remote(total=len(note_df), desc='Processing notes')
+                else:
+                    bar = None
 
-            @ray.remote
-            def process_note(text, stemmer_r, bar):
-                feature_vector = dict.fromkeys(kw_names, 0)
-                feature_vector.update({f'{x}_neg' : 0 for x in kw_names})
-                sentences = sent_tokenize(text)
-                for s in sentences:
-                    stem_words = set(stemmer_r.stem(word) for word in word_tokenize(s))
-                    for bag, words in kw_names.items():
-                        if words.issubset(stem_words):
-                            if negate_words.intersection(stem_words):
-                                feature_vector[f'{bag}_neg'] = 1
-                            else:
-                                feature_vector[bag] = 1
+                @ray.remote
+                def process_note(text, stemmer_r, bar):
+                    feature_vector = dict.fromkeys(kw_names, 0)
+                    feature_vector.update({f'{x}_neg' : 0 for x in kw_names})
+                    sentences = sent_tokenize(text)
+                    for s in sentences:
+                        stem_words = set(stemmer_r.stem(word) for word in word_tokenize(s))
+                        for bag, words in kw_names.items():
+                            if words.issubset(stem_words):
+                                if negate_words.intersection(stem_words):
+                                    feature_vector[f'{bag}_neg'] = 1
+                                else:
+                                    feature_vector[bag] = 1
+                    if bar:
+                        bar.update.remote(1)
+                    return feature_vector                    
+
+                futures = [process_note.remote(text, ray.put(SnowballStemmer('english')), bar) for text in note_df['note']]
+                note_feat = ray.get(futures)
                 if bar:
-                    bar.update.remote(1)
-                return feature_vector                    
-            
-            note_feat = ray.get([process_note.remote(text, ray.put(SnowballStemmer('english')), bar) for text in note_df['note']])
-            if bar:
-                bar.close.remote()
+                    bar.close.remote()
+            except KeyboardInterrupt:
+                for future in futures:
+                    ray.cancel(future, force=True)
+                raise
+            finally:
+                ray.shutdown()
+                gc.collect()
             
         note_feat = pl.DataFrame(note_feat)
         note_feat = note_feat.rename({col : f'{col}_' for col in note_feat.columns})

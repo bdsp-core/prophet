@@ -15,8 +15,8 @@ import gc
 
 logger = logging.getLogger(__name__)
 
-class SDHModel(_BaseModel):
-    path = importlib.resources.files("prophet.models.sdh").joinpath("config.yaml")
+class ISModel(_BaseModel):
+    path = importlib.resources.files("prophet.models.is").joinpath("config.yaml")
     if path.exists():
         DEFAULT_CONFIG_PATH = str(path)
     else:
@@ -52,33 +52,26 @@ class SDHModel(_BaseModel):
             return pred
 
 
-
     def load_model(self, model_path: str):
         logger.info(f"Loading model from {model_path}")
         # TODO: fix for user loading their own model?
-        path = importlib.resources.files("prophet.models.sdh").joinpath(model_path)
+        path = importlib.resources.files("prophet.models.is").joinpath(model_path)
         return joblib.load(str(path))
 
     def preprocess(self, data: Dict[str, pl.DataFrame], show_progress=False, force_casting=False) -> Dict[str, pl.DataFrame]:
         logger.info(f"Preprocessing started at {datetime.now()}")
         data = super().preprocess(data, show_progress, force_casting)
-        data['note'] = data['note'].with_row_index()
 
-        feat = data['note'].select(['index', 'id', 'date'])
+        feat = data['note'].with_row_index().select(['index', 'id', 'date'])
         logger.info(f'Generating features for n = {len(feat)}')
 
         # preliminary filter by just ids
         data['icd'] = data['icd'].filter(pl.col('id').is_in(feat['id'].unique()))
-        data['cpt'] = data['cpt'].filter(pl.col('id').is_in(feat['id'].unique()))
 
         # begin preprocess
         logger.info(f"ICD preprocessing started at {datetime.now()}")
         icd_feat = self._preprocess_icd(data['icd'], feat)
         logger.info(f"ICD preprocessing finished at {datetime.now()}")
-
-        logger.info(f"CPT preprocessing started at {datetime.now()}")
-        cpt_feat = self._preprocess_cpt(data['cpt'], feat)
-        logger.info(f"CPT preprocessing finished at {datetime.now()}")
 
         logger.info(f"Note preprocessing started at {datetime.now()}")
         note_feat = self._preprocess_note(data['note'], feat, show_progress)
@@ -87,10 +80,6 @@ class SDHModel(_BaseModel):
         # join features
         feat = feat.join(
             icd_feat,
-            on=['index', 'id', 'date'],
-            how='left'
-        ).join(
-            cpt_feat,
             on=['index', 'id', 'date'],
             how='left'
         ).join(
@@ -112,7 +101,7 @@ class SDHModel(_BaseModel):
             (pl.col('date').dt.offset_by(dt_offset)).alias('date_upper'),
         ).drop('date')
         icd_feat = feat.join(
-            feat.join(
+            feat.drop('index').join(
                 icd_df,
                 on='id',
                 how='left'
@@ -126,34 +115,6 @@ class SDHModel(_BaseModel):
             how='left'
         ).fill_null(0)
         return icd_feat
-    
-    def _preprocess_cpt(self, cpt_df: pl.DataFrame, feat: pl.DataFrame) -> pl.DataFrame:
-        cpt_names = self.config['parameters']['cpt']
-        dt_offset = self.config['parameters']['dt_offset']
-        all_codes = []
-        for codes in cpt_names.values():
-            all_codes.extend(codes)
-        cpt_df = cpt_df.filter(pl.col('cpt').str.contains('|'.join(all_codes)))
-
-        cpt_df = cpt_df.with_columns(
-            (pl.col('date').dt.offset_by('-' + dt_offset)).alias('date_lower'),
-            (pl.col('date').dt.offset_by(dt_offset)).alias('date_upper'),
-        ).drop('date')
-        cpt_feat = feat.join(
-            feat.join(
-                cpt_df,
-                on='id',
-                how='left'
-            ).filter(
-                (pl.col('date') >= pl.col('date_lower')) &
-                (pl.col('date') <= pl.col('date_upper'))
-            ).group_by(['id', 'date']).agg(
-                [pl.when(pl.col('cpt').str.contains('|'.join(v))).then(1).otherwise(0).max().alias(k) for k, v in cpt_names.items()]
-            ),
-            on=['id', 'date'],
-            how='left'
-        ).fill_null(0)
-        return cpt_feat
 
     def _preprocess_note(self, note_df: pl.DataFrame, feat: pl.DataFrame, show_progress=False) -> pl.DataFrame:
         note_df = note_df.with_columns(
@@ -161,12 +122,9 @@ class SDHModel(_BaseModel):
             .str.replace_all(r'\s+', ' ')
             .str.strip_chars()
             .str.to_lowercase()
-        ).with_columns(
-            pl.col('note').str.replace_all(r'subdural (hematoma|hemorrhage)', 'sdh')
-        )
+        ).with_row_index()
         kw_names = {x : set(x.split(' ')) for x in self.config['parameters']['kws']}
         negate_words = set(self.config['parameters']['neg_kws'])
-        history_words = set(self.config['parameters']['hist_kws'])
 
 
         ray.init()
@@ -181,28 +139,25 @@ class SDHModel(_BaseModel):
             def process_note(text, stemmer_r, bar):
                 feature_vector = dict.fromkeys(kw_names, 0)
                 feature_vector.update({f'{x}_neg' : 0 for x in kw_names})
-                feature_vector.update({f'{x}_hist' : 0 for x in kw_names})
                 sentences = sent_tokenize(text)
                 for s in sentences:
                     stem_words = set(stemmer_r.stem(word) for word in word_tokenize(s))
                     for bag, words in kw_names.items():
                         if words.issubset(stem_words):
-                            if history_words.intersection(stem_words):
-                                feature_vector[f'{bag}_hist'] = 1
                             if negate_words.intersection(stem_words):
                                 feature_vector[f'{bag}_neg'] = 1
                             else:
                                 feature_vector[bag] = 1
                 if bar:
                     bar.update.remote(1)
-                return feature_vector       
+                return feature_vector                    
             
             note_feat = ray.get([process_note.remote(text, ray.put(SnowballStemmer('english')), bar) for text in note_df['note']])
             if bar:
                 bar.close.remote()
         finally:
-            ray.shutdown()           
-            gc.collect()  
+            ray.shutdown()
+            gc.collect()
             
         note_feat = pl.DataFrame(note_feat)
         note_feat = note_feat.rename({col : f'{col}_' for col in note_feat.columns})
@@ -212,7 +167,7 @@ class SDHModel(_BaseModel):
             on=['index', 'id', 'date'],
             how='left',
             validate='1:1'
-        ).fill_null(0)
+        )
         return note_feat
     
     def predict(self, feat : pl.DataFrame) -> pl.DataFrame:

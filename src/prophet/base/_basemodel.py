@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 import polars as pl
 import yaml
 from ..utils.preprocessing import validate_dataframe
@@ -50,14 +50,14 @@ class _BaseModel(ABC):
             self.model = self.load_model(model_path)
 
     @abstractmethod
-    def load_model(self, model_path : str):
+    def load_model(self, model_path : Optional[str] = None):
         """Load the model from a given path"""
         pass
 
     @classmethod
-    def get_data_format(cls, config_path=None):
+    def get_data_format(cls, *args, config_path=None):
         """
-        Class method to get default data format schema
+        Dual method to get default data format schema/instantiated schema
         
         Args:
             config_path: Path to the config file, defaults to class's DEFAULT_CONFIG_PATH
@@ -65,6 +65,13 @@ class _BaseModel(ABC):
         Returns:
             Dictionary containing the schema information
         """
+        # Check if called on an instance
+        if args and isinstance(args[0], cls):
+            instance = args[0]
+            if instance.config:
+                return instance.config.get('schema', {})
+        
+        # If not called on instance or instance has no config
         if config_path is None:
             if cls.DEFAULT_CONFIG_PATH is None:
                 raise ValueError(f"No default config path defined for {cls.__name__}")

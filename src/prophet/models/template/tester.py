@@ -15,6 +15,7 @@ from datetime import datetime
 import time
 import importlib.resources
 from pathlib import Path
+import gc
 
 logger = logging.getLogger(__name__)
 
@@ -446,7 +447,8 @@ class TesterModel():
             negate_words = set(stemmer.stem(word) for word in kw_config['negative'])
         
         # Use Ray for parallel processing if available
-        with ray.init() as ray_context:
+        ray.init()
+        try:
             if show_progress:
                 remote_tqdm = ray.remote(tqdm_ray.tqdm)
                 bar = remote_tqdm.remote(total=len(note_df), desc='Processing notes')
@@ -494,6 +496,9 @@ class TesterModel():
             
             if bar and show_progress:
                 bar.close.remote()
+        finally:
+            ray.shutdown()
+            gc.collect()
         
         # Convert results to DataFrame
         note_feat_df = pl.DataFrame(note_feat)

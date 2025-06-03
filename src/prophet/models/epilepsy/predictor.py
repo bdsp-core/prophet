@@ -11,12 +11,16 @@ from ray.experimental import tqdm_ray
 from datetime import datetime
 import time
 import importlib.resources
+import gc
 
 logger = logging.getLogger(__name__)
 
 class EpilepsyModel(_BaseModel):
-    with importlib.resources.files("prophet.models.epilepsy").joinpath("config.yaml") as path:
+    path = importlib.resources.files("prophet.models.epilepsy").joinpath("config.yaml")
+    if path.exists():
         DEFAULT_CONFIG_PATH = str(path)
+    else:
+        raise FileNotFoundError(f"Configuration file not found: {path}")
 
     def __init__(self, config_path = None):
         if config_path is None:
@@ -51,8 +55,8 @@ class EpilepsyModel(_BaseModel):
     def load_model(self, model_path: str):
         logger.info(f"Loading model from {model_path}")
         # TODO: fix for user loading their own model?
-        with importlib.resources.files("prophet.models.epilepsy").joinpath(model_path) as path:
-            return joblib.load(path)
+        path = importlib.resources.files("prophet.models.epilepsy").joinpath(model_path)
+        return joblib.load(str(path))
 
     def preprocess(self, data: Dict[str, pl.DataFrame], show_progress=False, force_casting=False) -> Dict[str, pl.DataFrame]:
         preproc_start = time.time()
@@ -255,7 +259,8 @@ class EpilepsyModel(_BaseModel):
         med_feat_names = set(kw_config['med'])
         all_note_feat = list(pro_feat_names.keys()) + list(neg_feat_names.keys()) + list(med_feat_names)
 
-        with ray.init() as ray_context:
+        ray.init()
+        try:
             if show_progress:
                 remote_tqdm = ray.remote(tqdm_ray.tqdm)
                 bar = remote_tqdm.remote(total=len(note_df), desc='Processing notes')
@@ -284,6 +289,9 @@ class EpilepsyModel(_BaseModel):
             note_feat = ray.get([process_note.remote(text, ray.put(SnowballStemmer('english')), bar) for text in note_df['note']])
             if bar:
                 bar.close.remote()
+        finally:
+            ray.shutdown()
+            gc.collect()
 
         note_feat = pl.DataFrame(note_feat)
         for col1, col2 in kw_config['join_columns']:
