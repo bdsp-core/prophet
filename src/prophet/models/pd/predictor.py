@@ -13,6 +13,9 @@ import importlib.resources
 import time
 # from xgboost import XGBClassifier
 import gc
+from glob import glob
+import os
+import shutil
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +70,8 @@ class PDModel(_BaseModel):
         data['note'] = data['note'].with_row_index()
 
         feat = data['note'].select(['index', 'id', 'date'])
+        if len(feat) == 0:
+            raise ValueError("No notes found in the provided data. Please check your input data.")
         logger.info(f'Generating features for n = {len(feat)}')
 
         # preliminary filter by just ids
@@ -176,10 +181,10 @@ class PDModel(_BaseModel):
             should_shutdown = False
 
         try:
-            # Calculate batch size based on available CPUs
+            # Use fixed batch size of 1000 rows for consistent memory usage
+            batch_size = 1000
             num_cpus = int(ray.available_resources().get("CPU", 1))
             total_notes = len(note_df)
-            batch_size = max(1, total_notes // (num_cpus * 4))  # 4x more batches than CPUs for better load balancing
             
             if show_progress:
                 remote_tqdm = ray.remote(tqdm_ray.tqdm)
@@ -267,19 +272,40 @@ class PDModel(_BaseModel):
                 
                 return batch_results
 
-            # Split notes into batches
+            # Split notes into fixed-size batches of 1000 rows each
             notes_list = note_df['note'].to_list()
             note_batches = [notes_list[i:i + batch_size] for i in range(0, len(notes_list), batch_size)]
             
-            logger.info(f"Processing {total_notes} notes in {len(note_batches)} batches of ~{batch_size} notes each using {num_cpus} CPUs")
+            logger.info(f"Processing {total_notes} notes in {len(note_batches)} batches of {batch_size} notes each using {num_cpus} CPUs")
             
-            # Create one task per batch instead of per note
-            futures = [process_note_batch.remote(batch, ray.put(SnowballStemmer('english')), bar) 
-                    for batch in note_batches]
+            # Use ray.wait() to limit pending tasks and avoid memory pressure
+            MAX_PENDING_TASKS = num_cpus * 2  # Keep 2x CPU cores worth of tasks pending
+            batch_counter = 0
+            result_refs = []
+            note_feat = []
+            os.makedirs("/tmp/pd_nax_processing", exist_ok=True)
             
-            # Get results and flatten the list of lists
-            batch_results = ray.get(futures)
-            note_feat = [item for batch in batch_results for item in batch]
+            # Put stemmer in object store once to avoid repeated serialization
+            stemmer_ref = ray.put(SnowballStemmer('english'))
+            
+            for i, batch in enumerate(note_batches):
+                # Apply backpressure - wait for tasks to complete if we have too many pending
+                if len(result_refs) >= MAX_PENDING_TASKS:
+                    ready_refs, result_refs = ray.wait(result_refs, num_returns=1)
+                    # Process completed results immediately to free memory
+                    completed_results = ray.get(ready_refs)
+                    batch_df = pl.DataFrame([item for batch_result in completed_results for item in batch_result])
+                    batch_df.write_parquet(f"/tmp/pd_nax_processing/batch_{batch_counter}.parquet")
+                    batch_counter += 1
+                    
+                # Submit new task
+                result_refs.append(process_note_batch.remote(batch, stemmer_ref, bar))
+            
+            # Process any remaining tasks
+            if result_refs:
+                remaining_results = ray.get(result_refs)
+                batch_df = pl.DataFrame([item for batch_result in remaining_results for item in batch_result])
+                batch_df.write_parquet(f"/tmp/pd_nax_processing/batch_{batch_counter}.parquet")
             
             if bar:
                 bar.close.remote()
@@ -292,7 +318,8 @@ class PDModel(_BaseModel):
             if should_shutdown:
                 ray.shutdown()
             gc.collect()
-
+            
+        note_feat = pl.read_parquet('/tmp/pd_nax_processing/batch_*.parquet')
         note_feat = pl.DataFrame(note_feat)
         note_feat = note_feat.rename({col : f'{col}_' for col in note_feat.columns})
         note_feat = note_feat.hstack(note_df.select(['index', 'id', 'date']))
@@ -302,6 +329,7 @@ class PDModel(_BaseModel):
             how='left',
             validate='1:1'
         )
+        shutil.rmtree('/tmp/pd_nax_processing', ignore_errors=True)
         return note_feat
     
     def predict(self, feat : pl.DataFrame) -> pl.DataFrame:
