@@ -15,8 +15,8 @@ import gc
 
 logger = logging.getLogger(__name__)
 
-class AFModelICD(_BaseModel):
-    path = importlib.resources.files("prophet.models.af").joinpath("config.yaml")
+class ISModelICD(_BaseModel):
+    path = importlib.resources.files("prophet.models.is_icd").joinpath("config.yaml")
     if path.exists():
         DEFAULT_CONFIG_PATH = str(path)
     else:
@@ -58,15 +58,6 @@ class AFModelICD(_BaseModel):
             raise ValueError("No ICD data found in the provided data. Please check your input data.")
         icd_feat = icd_feat.filter(
             pl.col('icd').str.contains('|'.join(self.config['parameters']['icd']))
-        ).sort('date').group_by('id').agg(
-            'icd',
-            'date',
-            pl.col('date').shift(-1).alias('next_date'),
-        ).explode(['date', 'next_date']).with_columns(
-            (pl.col('next_date') - pl.col('date')).alias('time_diff')
-        ).filter(
-            (pl.col('time_diff') > pl.duration(days=7)) &
-            (pl.col('time_diff') <= pl.duration(days=365))
         ).with_columns(
             pl.lit(1).alias('prediction')
         )

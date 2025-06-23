@@ -143,6 +143,9 @@ class TesterModel():
         else:
             # Create an empty DataFrame with id and date columns
             feat = pl.DataFrame({'id': [], 'date': []})
+
+        if len(feat) == 0:
+            raise ValueError("No dates found in the provided data. Please check your input data.")
             
         logger.info(f'Generating features for n = {len(feat)}')
         

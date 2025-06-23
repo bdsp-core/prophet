@@ -26,11 +26,11 @@ class _ModelCreator:
         # "nihss": (".models.nihss.predictor", "NIHSSModel"),
         # "mrs" : (".models.mrs.predictor", "MRSModel"),
         # "wlst": (".models.wlst.predictor", "WLSTModel"),
-        # "atrial_fibrillation_icd": (".models.af.predictor", "AFModelICD"),
-        # "myocardial_infarction_icd": (".models.mi.predictor", "MIModelICD"),
-        # "ischemic_stroke_icd": (".models.is_icd.predictor", "ISModelICD"),
-        # "coronary_artery_disease_icd": (".models.cad.predictor", "CADModelICD"),
-        # "diabetes_mellitus_icd": (".models.dm.predictor", "DMModelICD"),
+        "atrial_fibrillation_icd": (".models.af.predictor", "AFModelICD"),
+        "myocardial_infarction_icd": (".models.mi.predictor", "MIModelICD"),
+        "ischemic_stroke_icd": (".models.is_icd.predictor", "ISModelICD"),
+        "coronary_artery_disease_icd": (".models.cad.predictor", "CADModelICD"),
+        "diabetes_mellitus_icd": (".models.dm.predictor", "DMModelICD"),
         # Add more models here following the pattern: "model_name": ("module.path", "ClassName")
     }
     
@@ -46,11 +46,11 @@ class _ModelCreator:
         "is": "ischemic_stroke",
         # "mci": "mild_cognitive_impairment",
         # "nidx": "neuroinfectious_diseases",
-        # "af" : "atrial_fibrillation",
-        # "mi" : "myocardial_infarction",
-        # "is_icd" : "ischemic_stroke_icd",
-        # "cad" : "coronary_artery_disease",
-        # "dm" : "diabetes_mellitus",
+        "af" : "atrial_fibrillation",
+        "mi" : "myocardial_infarction",
+        "is_icd" : "ischemic_stroke_icd",
+        "cad" : "coronary_artery_disease",
+        "dm" : "diabetes_mellitus",
         # Add more aliases here following the pattern: "alias": "canonical_name"
     }
     

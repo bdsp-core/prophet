@@ -1,0 +1,8 @@
+credits: 
+schema:
+  icd:
+    id : !pl String
+    icd : !pl String
+    date : !pl Date
+parameters:
+  icd: ['^433\\.?.1','^434\\.?.1','^436','^I63','^I64']
