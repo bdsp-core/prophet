@@ -16,6 +16,9 @@ import gc
 from glob import glob
 import os
 import shutil
+import psutil
+import tempfile
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -164,34 +167,48 @@ class PDModel(_BaseModel):
         return med_feat
     
     def _preprocess_note(self, note_df: pl.DataFrame, feat: pl.DataFrame, show_progress=False) -> pl.DataFrame:
+        # Text preprocessing - PD model doesn't use .with_row_index()
         note_df = note_df.with_columns(
             pl.col('note').str.replace_all(r'[^a-zA-Z0-9 \n\.]', '')
             .str.replace_all(r'\s+', ' ')
             .str.strip_chars()
             .str.to_lowercase()
         )
-        kw_names = {x : set(x.split(' ')) for x in self.config['parameters']['kws']}
+        
+        # Prepare keyword configurations
+        kw_names = {x: set(x.split(' ')) for x in self.config['parameters']['kws']}
 
+        # Ray initialization with memory management
         ray_was_initialized = ray.is_initialized()
         
         if not ray_was_initialized and not self.external_ray:
-            ray.init()
+            # Initialize Ray with memory limits to prevent OOM
+            ray.init(
+                object_store_memory=int(0.2 * psutil.virtual_memory().total),  # 20% of total memory
+                _memory=int(0.3 * psutil.virtual_memory().total),  # 30% for worker processes
+                _redis_max_memory=int(0.05 * psutil.virtual_memory().total)
+            )
             should_shutdown = True
         else:
             should_shutdown = False
 
         try:
-            # Use fixed batch size of 1000 rows for consistent memory usage
-            batch_size = 1000
+            # Use smaller batch size for better memory management
+            batch_size = 500  # Reduced from 1000
             num_cpus = int(ray.available_resources().get("CPU", 1))
             total_notes = len(note_df)
             
+            # Create temporary directory with better path handling
+            temp_dir = Path(tempfile.mkdtemp(prefix="pd_processing_"))
+            
             if show_progress:
-                remote_tqdm = ray.remote(tqdm_ray.tqdm)
-                bar = remote_tqdm.remote(total=total_notes, desc='Processing notes')
+                # Use tqdm without ray.remote wrapper for simplicity
+                from tqdm import tqdm
+                progress_bar = tqdm(total=total_notes, desc='Processing PD notes')
             else:
-                bar = None
+                progress_bar = None
 
+            # Advanced negation triggers - PD model's sophisticated negation logic
             negation_triggers = {
                 'preceding': ['no', 'deny', 'absence', 'not', 'negative', 'without', 'rule out', 
                             'unlikely', 'free of', 'never', 'unremarkable for'],
@@ -208,130 +225,192 @@ class PDModel(_BaseModel):
                                 for phrase in negation_triggers['following']]
             stemmed_negation['pseudo'] = [' '.join(stemmer.stem(word) for word in phrase.split()) 
                             for phrase in negation_triggers['pseudo']]
-            
-            @ray.remote
-            def process_note_batch(text_batch, stemmer_r, bar):
-                """Process a batch of notes instead of individual notes"""
-                batch_results = []
-                
-                for text in text_batch:
-                    feature_vector = dict.fromkeys(kw_names, 0)
-                    feature_vector.update({f'{x}_neg': 0 for x in kw_names})
-                    
-                    # Window size for negation scope
-                    window_size = 5  # words
-                    
-                    sentences = sent_tokenize(text)
-                    for s in sentences:
-                        words = word_tokenize(s)
-                        stemmed_words = [stemmer_r.stem(word) for word in words]
-                        
-                        # Find negation triggers with sliding window to catch multi-word phrases
-                        neg_indices = []
-                        for i in range(len(stemmed_words)):
-                            # Check for single-word triggers
-                            if stemmed_words[i] in stemmed_negation['preceding']:
-                                neg_indices.append((i, min(i + window_size, len(stemmed_words))))
-                            elif stemmed_words[i] in stemmed_negation['following']:
-                                neg_indices.append((max(0, i - window_size), i))
-                            
-                            # Check for multi-word triggers
-                            for j in range(1, min(4, len(stemmed_words) - i)):  # Check phrases up to 4 words
-                                phrase = ' '.join(stemmed_words[i:i+j])
-                                if phrase in stemmed_negation['preceding']:
-                                    neg_indices.append((i+j-1, min(i+j-1 + window_size, len(stemmed_words))))
-                                elif phrase in stemmed_negation['following']:
-                                    neg_indices.append((max(0, i - window_size), i))
-                                elif phrase in stemmed_negation['pseudo']:  # Remove negation if pseudo-negation
-                                    neg_indices = [idx for idx in neg_indices if not (idx[0] <= i and idx[1] >= i+j-1)]
-                        
-                        # Check for keywords
-                        for bag, kw_set in kw_names.items():
-                            # Find indices where keywords appear
-                            kw_indices = []
-                            for i, stemmed in enumerate(stemmed_words):
-                                if stemmed in kw_set:
-                                    kw_indices.append(i)
-                            
-                            if kw_indices:
-                                # Check if any keyword is within negation scope
-                                is_negated = any(
-                                    any(neg_start <= kw_idx <= neg_end for neg_start, neg_end in neg_indices)
-                                    for kw_idx in kw_indices
-                                )
-                                
-                                if is_negated:
-                                    feature_vector[f'{bag}_neg'] = 1
-                                else:
-                                    feature_vector[bag] = 1
-                    batch_results.append(feature_vector)
-                    
-                    # Update progress for each note in the batch
-                    if bar:
-                        bar.update.remote(1)
-                
-                return batch_results
 
-            # Split notes into fixed-size batches of 1000 rows each
+            @ray.remote(num_cpus=1)  # Explicitly set resource requirements
+            class PDProcessor:
+                def __init__(self):
+                    self.stemmer = SnowballStemmer('english')
+                    self.kw_names = kw_names
+                    self.stemmed_negation = stemmed_negation
+                
+                def process_batch(self, text_batch, batch_id):
+                    """Process a batch of notes with explicit memory management"""
+                    batch_results = []
+                    
+                    try:
+                        for text in text_batch:
+                            feature_vector = dict.fromkeys(self.kw_names, 0)
+                            feature_vector.update({f'{x}_neg': 0 for x in self.kw_names})
+                            
+                            # Window size for negation scope
+                            window_size = 5  # words
+                            
+                            sentences = sent_tokenize(text)
+                            for s in sentences:
+                                words = word_tokenize(s)
+                                stemmed_words = [self.stemmer.stem(word) for word in words]
+                                
+                                # Find negation triggers with sliding window to catch multi-word phrases
+                                neg_indices = []
+                                for i in range(len(stemmed_words)):
+                                    # Check for single-word triggers
+                                    if stemmed_words[i] in self.stemmed_negation['preceding']:
+                                        neg_indices.append((i, min(i + window_size, len(stemmed_words))))
+                                    elif stemmed_words[i] in self.stemmed_negation['following']:
+                                        neg_indices.append((max(0, i - window_size), i))
+                                    
+                                    # Check for multi-word triggers
+                                    for j in range(1, min(4, len(stemmed_words) - i)):  # Check phrases up to 4 words
+                                        phrase = ' '.join(stemmed_words[i:i+j])
+                                        if phrase in self.stemmed_negation['preceding']:
+                                            neg_indices.append((i+j-1, min(i+j-1 + window_size, len(stemmed_words))))
+                                        elif phrase in self.stemmed_negation['following']:
+                                            neg_indices.append((max(0, i - window_size), i))
+                                        elif phrase in self.stemmed_negation['pseudo']:  # Remove negation if pseudo-negation
+                                            neg_indices = [idx for idx in neg_indices if not (idx[0] <= i and idx[1] >= i+j-1)]
+                                
+                                # Check for keywords
+                                for bag, kw_set in self.kw_names.items():
+                                    # Find indices where keywords appear
+                                    kw_indices = []
+                                    for i, stemmed in enumerate(stemmed_words):
+                                        if stemmed in kw_set:
+                                            kw_indices.append(i)
+                                    
+                                    if kw_indices:
+                                        # Check if any keyword is within negation scope
+                                        is_negated = any(
+                                            any(neg_start <= kw_idx <= neg_end for neg_start, neg_end in neg_indices)
+                                            for kw_idx in kw_indices
+                                        )
+                                        
+                                        if is_negated:
+                                            feature_vector[f'{bag}_neg'] = 1
+                                        else:
+                                            feature_vector[bag] = 1
+                            
+                            batch_results.append(feature_vector)
+                        
+                        # Convert to DataFrame and save immediately
+                        batch_df = pl.DataFrame(batch_results)
+                        output_path = temp_dir / f"batch_{batch_id}.parquet"
+                        batch_df.write_parquet(output_path)
+                        
+                        # Force garbage collection
+                        del batch_results, batch_df
+                        gc.collect()
+                        
+                        return len(text_batch), str(output_path)
+                        
+                    except Exception as e:
+                        logger.error(f"Error processing batch {batch_id}: {e}")
+                        raise
+
+            # Create processor actors with your preferred concurrency
+            max_concurrent_actors = max(1, num_cpus - 2)  # Use your preferred num_cpus - 2
+            processors = [PDProcessor.remote() for _ in range(max_concurrent_actors)]
+            
+            # Split notes into batches
             notes_list = note_df['note'].to_list()
             note_batches = [notes_list[i:i + batch_size] for i in range(0, len(notes_list), batch_size)]
             
-            logger.info(f"Processing {total_notes} notes in {len(note_batches)} batches of {batch_size} notes each using {num_cpus} CPUs")
+            logger.info(f"Processing {total_notes} notes in {len(note_batches)} batches using {max_concurrent_actors} actors")
             
-            # Use ray.wait() to limit pending tasks and avoid memory pressure
-            MAX_PENDING_TASKS = num_cpus * 2  # Keep 2x CPU cores worth of tasks pending
+            # Process batches with controlled concurrency
+            futures = []
             batch_counter = 0
-            result_refs = []
-            note_feat = []
-            os.makedirs("/tmp/pd_nax_processing", exist_ok=True)
+            completed_files = []
             
-            # Put stemmer in object store once to avoid repeated serialization
-            stemmer_ref = ray.put(SnowballStemmer('english'))
-            
+            # Submit initial batches
             for i, batch in enumerate(note_batches):
-                # Apply backpressure - wait for tasks to complete if we have too many pending
-                if len(result_refs) >= MAX_PENDING_TASKS:
-                    ready_refs, result_refs = ray.wait(result_refs, num_returns=1)
-                    # Process completed results immediately to free memory
-                    completed_results = ray.get(ready_refs)
-                    batch_df = pl.DataFrame([item for batch_result in completed_results for item in batch_result])
-                    batch_df.write_parquet(f"/tmp/pd_nax_processing/batch_{batch_counter}.parquet")
-                    batch_counter += 1
+                processor = processors[i % len(processors)]
+                future = processor.process_batch.remote(batch, batch_counter)
+                futures.append(future)
+                batch_counter += 1
+                
+                # Control memory by limiting pending tasks
+                if len(futures) >= max_concurrent_actors * 2:
+                    # Wait for at least one to complete
+                    ready, futures = ray.wait(futures, num_returns=1, timeout=None)
                     
-                # Submit new task
-                result_refs.append(process_note_batch.remote(batch, stemmer_ref, bar))
+                    # Process completed results
+                    for ready_ref in ready:
+                        try:
+                            processed_count, file_path = ray.get(ready_ref)
+                            completed_files.append(file_path)
+                            
+                            if progress_bar:
+                                progress_bar.update(processed_count)
+                                
+                        except Exception as e:
+                            logger.error(f"Error getting result: {e}")
+                            continue
             
-            # Process any remaining tasks
-            if result_refs:
-                remaining_results = ray.get(result_refs)
-                batch_df = pl.DataFrame([item for batch_result in remaining_results for item in batch_result])
-                batch_df.write_parquet(f"/tmp/pd_nax_processing/batch_{batch_counter}.parquet")
+            # Wait for remaining tasks with better handling
+            while futures:
+                ready, futures = ray.wait(futures, num_returns=len(futures), timeout=60)
+                
+                for ready_ref in ready:
+                    try:
+                        processed_count, file_path = ray.get(ready_ref, timeout=30)
+                        completed_files.append(file_path)
+                        
+                        if progress_bar:
+                            progress_bar.update(processed_count)
+                            
+                    except ray.exceptions.GetTimeoutError:
+                        logger.warning("Task timed out during final processing")
+                        continue
+                    except Exception as e:
+                        logger.error(f"Error in final processing: {e}")
+                        continue
             
-            if bar:
-                bar.close.remote()
+            if progress_bar:
+                progress_bar.close()
+                
+            # Clean up actors
+            for processor in processors:
+                ray.kill(processor)
+            
+            # Force garbage collection before reading results
+            gc.collect()
                 
         except KeyboardInterrupt:
-            # Handle interruption gracefully
+            logger.info("Processing interrupted by user")
+            raise
+        except Exception as e:
+            logger.error(f"Error during processing: {e}")
             raise
         finally:
             # Only shutdown Ray if we initialized it AND we're not using external Ray
             if should_shutdown:
                 ray.shutdown()
             gc.collect()
+        
+        # Read and combine results
+        try:
+            parquet_files = list(temp_dir.glob("batch_*.parquet"))
+            if not parquet_files:
+                raise ValueError("No batch files were created")
+                
+            note_feat = pl.read_parquet(parquet_files)
             
-        note_feat = pl.read_parquet('/tmp/pd_nax_processing/batch_*.parquet')
-        note_feat = pl.DataFrame(note_feat)
-        note_feat = note_feat.rename({col : f'{col}_' for col in note_feat.columns})
-        note_feat = note_feat.hstack(note_df.select(['index', 'id', 'date']))
-        note_feat = feat.join(
-            note_feat,
-            on=['index', 'id', 'date'],
-            how='left',
-            validate='1:1'
-        )
-        shutil.rmtree('/tmp/pd_nax_processing', ignore_errors=True)
+            # Rename columns and join with original data - PD model uses index+id+date
+            note_feat = note_feat.rename({col: f'{col}_' for col in note_feat.columns})
+            note_feat = note_feat.hstack(note_df.select(['index', 'id', 'date']))  # PD model includes date
+            note_feat = feat.join(
+                note_feat,
+                on=['index', 'id', 'date'],  # PD model: 3 columns like CA, ICH, and IS
+                how='left',
+                validate='1:1'
+            )
+            
+        finally:
+            # Clean up temporary files
+            shutil.rmtree(temp_dir, ignore_errors=True)
+        
         return note_feat
-    
+
     def predict(self, feat : pl.DataFrame) -> pl.DataFrame:
         """
         Run the model on the provided features.

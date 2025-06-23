@@ -15,7 +15,7 @@ import gc
 
 logger = logging.getLogger(__name__)
 
-class AFModel(_BaseModel):
+class AFModelICD(_BaseModel):
     path = importlib.resources.files("prophet.models.af").joinpath("config.yaml")
     if path.exists():
         DEFAULT_CONFIG_PATH = str(path)
@@ -43,7 +43,7 @@ class AFModel(_BaseModel):
             feat: DataFrame with features
             pred: DataFrame with predictions
         """
-        data = super().preprocess(data, show_progress, force_casting)
+        data = self.preprocess(data, show_progress, force_casting)
         if return_features:
             return feat, pred
         else:
@@ -52,7 +52,8 @@ class AFModel(_BaseModel):
     def preprocess(self, data: Dict[str, pl.DataFrame], show_progress=False, force_casting=False) -> Dict[str, pl.DataFrame]:
         logger.info(f"Preprocessing started at {datetime.now()}")
         data = super().preprocess(data, show_progress, force_casting)
-
+        
+        data['icd']
         feat = data['note'].select(['index', 'id'])
         if len(feat) == 0:
             raise ValueError("No notes found in the provided data. Please check your input data.")

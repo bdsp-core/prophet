@@ -1,4 +1,4 @@
-model_path: 
+model_path: is_model.joblib
 credits: 
 schema:
   icd:
@@ -10,7 +10,7 @@ schema:
     note : !pl String
     date : !pl Date
 parameters:
-  threshold: 
+  threshold: 0.370
   dt_offset: '6mo'
   icd: ['^433', '^434', '^I63', '^I69\.?3']
   # kws: ['acetaminophen', 'acut infarct', 'acut intracrani hemorrhag', 'acut myocardi infarct', 'adderal', 'advair', 'affect area', 'age brain', 'age head', 'albuterol', 'allergi drug', 'amlodipin', 'aneurysm', 'aortic arch', 'arteri', 'arteri diseas', 'arteri stroke', 'aspirin', 'atorvastatin', 'atrial fibril', 'blood', 'blood clot', 'blood flow', 'blood pressur', 'blood sugar', 'blood sugar diagnost', 'blood work', 'brain', 'bupropion', 'cardiac diseas', 'cardiac tumor', 'cardioembol', 'cardiomyopathi', 'carotid', 'carotid arteri', 'caviti clear', 'cerebr arteri', 'chest pain', 'cholecalciferol', 'chronic pain', 'chronic small', 'chronic small vessel', 'circl willi', 'clear auscult', 'clear auscult bilater', 'codein', 'coronari arteri diseas', 'cva', 'delay releas', 'diabet', 'dyslipidemia', 'embol', 'emerg depart', 'endocard', 'evid fractur', 'evid stenosi', 'extrem edema', 'facial droop', 'flovent', 'fluoxetin', 'fluticason', 'furosemid', 'gray', 'hemorrhag transform', 'histori present', 'histori present ill', 'hydrocodon', 'hyperlipidemia', 'hypertens', 'infarct', 'infarct core', 'intern', 'intern carotid', 'intern carotid arteri', 'intracrani hemorrhag', 'involut chang', 'iron', 'ischem', 'ischem chang', 'ischem diseas', 'lacunar', 'levothyroxin', 'lisinopril', 'losartan', 'low extrem edema', 'm1 cutoff', 'm2 cutoff', 'malign', 'metformin', 'methylphenid', 'metoprolol', 'metoprolol succin er', 'mg po daili', 'neurolog deficit', 'obes', 'obstruct', 'obstruct sleep apnea', 'occlus', 'omeprazol', 'oxycodon', 'oxygen', 'penumbra', 'pressur', 'proair', 'propion', 'recreat drug', 'regular rate', 'regular rate rhythm', 'septic emboli', 'sertralin', 'short breath', 'sleep apnea', 'sleep studi', 'small vessel', 'small vessel ischem', 'sodium', 'stenosi', 'stenosi occlus', 'stroke', 'sulfat', 'thrombosi', 'tia', 'tobacco', 'tobacco use', 'toprol', 'tpa', 'tramadol', 'transient ischem attack', 'trazodon', 'vascular territori', 'vertebr', 'vertebr arteri', 'vessel', 'vessel ischem', 'vessel ischem diseas', 'vitamin', 'vitamin d', 'vitamin d defici', 'warfarin', 'watersh']

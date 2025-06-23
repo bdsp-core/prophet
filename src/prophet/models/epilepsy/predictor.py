@@ -15,6 +15,9 @@ import gc
 from glob import glob
 import os
 import shutil
+import tempfile
+import psutil
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -249,6 +252,7 @@ class EpilepsyModel(_BaseModel):
         return med_feat
     
     def _preprocess_note(self, note_df: pl.DataFrame, feat: pl.DataFrame, show_progress=False) -> pl.DataFrame:
+        # Text preprocessing
         note_df = note_df.with_columns(
             pl.col('note').str.replace_all(r'[^a-zA-Z0-9 \n\.]', '')
             .str.replace_all(r'\s+', ' ')
@@ -258,124 +262,197 @@ class EpilepsyModel(_BaseModel):
             pl.col('*').exclude('note'),
             pl.col('note').str.concat(delimiter=' ').alias('note')
         )
+        
         kw_config = self.config['parameters']['kws']
-
-        pro_feat_names = {k : set(v) for k, v in kw_config['pro'].items()}
-        neg_feat_names = {k : set(v) for k, v in kw_config['neg'].items()}
+        pro_feat_names = {k: set(v) for k, v in kw_config['pro'].items()}
+        neg_feat_names = {k: set(v) for k, v in kw_config['neg'].items()}
         med_feat_names = set(kw_config['med'])
         all_note_feat = list(pro_feat_names.keys()) + list(neg_feat_names.keys()) + list(med_feat_names)
 
-
+        # Ray initialization with memory management
         ray_was_initialized = ray.is_initialized()
         
         if not ray_was_initialized and not self.external_ray:
-            ray.init()
+            # Initialize Ray with memory limits to prevent OOM
+            ray.init(
+                object_store_memory=int(0.2 * psutil.virtual_memory().total),  # 20% of total memory
+                _memory=int(0.3 * psutil.virtual_memory().total),  # 30% for worker processes
+                # Enable memory monitoring (available in Ray 2.2+)
+                _redis_max_memory=int(0.05 * psutil.virtual_memory().total)
+            )
             should_shutdown = True
         else:
             should_shutdown = False
 
         try:
-            # Use fixed batch size of 1000 rows for consistent memory usage
-            batch_size = 1000
+            # Use smaller batch size for better memory management
+            batch_size = 500
             num_cpus = int(ray.available_resources().get("CPU", 1))
             total_notes = len(note_df)
             
+            # Create temporary directory with better path handling
+            temp_dir = Path(tempfile.mkdtemp(prefix="epilepsy_processing_"))
+            
             if show_progress:
-                remote_tqdm = ray.remote(tqdm_ray.tqdm)
-                bar = remote_tqdm.remote(total=total_notes, desc='Processing notes')
+                # Use tqdm without ray.remote wrapper for simplicity
+                from tqdm import tqdm
+                progress_bar = tqdm(total=total_notes, desc='Processing notes')
             else:
-                bar = None
+                progress_bar = None
 
-            @ray.remote
-            def process_note_batch(text_batch, stemmer_r, bar):
-                """Process a batch of notes instead of individual notes"""
-                batch_results = []
+            @ray.remote(num_cpus=1)  # Explicitly set resource requirements
+            class BatchProcessor:
+                def __init__(self):
+                    self.stemmer = SnowballStemmer('english')
+                    self.pro_feat_names = pro_feat_names
+                    self.neg_feat_names = neg_feat_names
+                    self.med_feat_names = med_feat_names
+                    self.all_note_feat = all_note_feat
                 
-                for text in text_batch:
-                    feature_vector = dict.fromkeys(all_note_feat, 0)
-                    sentences = sent_tokenize(text)
-                    for s in sentences:
-                        stem_words = set(stemmer_r.stem(word) for word in word_tokenize(s))
+                def process_batch(self, text_batch, batch_id):
+                    """Process a batch of notes with explicit memory management"""
+                    batch_results = []
+                    
+                    try:
+                        for text in text_batch:
+                            feature_vector = dict.fromkeys(self.all_note_feat, 0)
+                            sentences = sent_tokenize(text)
+                            
+                            for s in sentences:
+                                stem_words = set(self.stemmer.stem(word) for word in word_tokenize(s))
 
-                        # Check for AEDs
-                        for word in stem_words.intersection(med_feat_names):
-                            feature_vector[word] = 1
+                                # Check for AEDs
+                                for word in stem_words.intersection(self.med_feat_names):
+                                    feature_vector[word] = 1
 
-                        # Check for anti-epilepsy bag of words and pro-evidences
-                        for dictionary in (pro_feat_names, neg_feat_names):
-                            for bag, words in dictionary.items():
-                                if words.issubset(stem_words):
-                                    feature_vector[bag] = 1
-                        batch_results.append(feature_vector)
+                                # Check for anti-epilepsy bag of words and pro-evidences
+                                for dictionary in (self.pro_feat_names, self.neg_feat_names):
+                                    for bag, words in dictionary.items():
+                                        if words.issubset(stem_words):
+                                            feature_vector[bag] = 1
+                            
+                            batch_results.append(feature_vector)
                         
-                        # Update progress for each note in the batch
-                        if bar:
-                            bar.update.remote(1)
-                
-                return batch_results
+                        # Convert to DataFrame and save immediately
+                        batch_df = pl.DataFrame(batch_results)
+                        output_path = temp_dir / f"batch_{batch_id}.parquet"
+                        batch_df.write_parquet(output_path)
+                        
+                        # Force garbage collection
+                        del batch_results, batch_df
+                        gc.collect()
+                        
+                        return len(text_batch), str(output_path)
+                        
+                    except Exception as e:
+                        logger.error(f"Error processing batch {batch_id}: {e}")
+                        raise
 
-            # Split notes into fixed-size batches of 1000 rows each
+            # Create processor actors with limited concurrency
+            max_concurrent_actors = max(1, num_cpus - 2)
+            processors = [BatchProcessor.remote() for _ in range(max_concurrent_actors)]
+            
+            # Split notes into batches
             notes_list = note_df['note'].to_list()
             note_batches = [notes_list[i:i + batch_size] for i in range(0, len(notes_list), batch_size)]
             
-            logger.info(f"Processing {total_notes} notes in {len(note_batches)} batches of {batch_size} notes each using {num_cpus} CPUs")
+            logger.info(f"Processing {total_notes} notes in {len(note_batches)} batches using {max_concurrent_actors} actors")
             
-            # Use ray.wait() to limit pending tasks and avoid memory pressure
-            MAX_PENDING_TASKS = num_cpus * 2  # Keep 2x CPU cores worth of tasks pending
+            # Process batches with controlled concurrency
+            futures = []
             batch_counter = 0
-            result_refs = []
-            note_feat = []
-            os.makedirs("/tmp/epilepsy_nax_processing", exist_ok=True)
+            completed_files = []
             
-            # Put stemmer in object store once to avoid repeated serialization
-            stemmer_ref = ray.put(SnowballStemmer('english'))
-            
+            # Submit initial batches
             for i, batch in enumerate(note_batches):
-                # Apply backpressure - wait for tasks to complete if we have too many pending
-                if len(result_refs) >= MAX_PENDING_TASKS:
-                    ready_refs, result_refs = ray.wait(result_refs, num_returns=1)
-                    # Process completed results immediately to free memory
-                    completed_results = ray.get(ready_refs)
-                    batch_df = pl.DataFrame([item for batch_result in completed_results for item in batch_result])
-                    batch_df.write_parquet(f"/tmp/epilepsy_nax_processing/batch_{batch_counter}.parquet")
-                    batch_counter += 1
+                processor = processors[i % len(processors)]
+                future = processor.process_batch.remote(batch, batch_counter)
+                futures.append(future)
+                batch_counter += 1
+                
+                # Control memory by limiting pending tasks
+                if len(futures) >= max_concurrent_actors * 2:
+                    # Wait for at least one to complete
+                    ready, futures = ray.wait(futures, num_returns=1, timeout=None)
                     
-                # Submit new task
-                result_refs.append(process_note_batch.remote(batch, stemmer_ref, bar))
+                    # Process completed results
+                    for ready_ref in ready:
+                        try:
+                            processed_count, file_path = ray.get(ready_ref)
+                            completed_files.append(file_path)
+                            
+                            if progress_bar:
+                                progress_bar.update(processed_count)
+                                
+                        except Exception as e:
+                            logger.error(f"Error getting result: {e}")
+                            continue
             
-            # Process any remaining tasks
-            if result_refs:
-                remaining_results = ray.get(result_refs)
-                batch_df = pl.DataFrame([item for batch_result in remaining_results for item in batch_result])
-                batch_df.write_parquet(f"/tmp/epilepsy_nax_processing/batch_{batch_counter}.parquet")
+            # Wait for remaining tasks
+            while futures:
+                ready, futures = ray.wait(futures, num_returns=len(futures), timeout=60)
+                
+                for ready_ref in ready:
+                    try:
+                        processed_count, file_path = ray.get(ready_ref, timeout=30)
+                        completed_files.append(file_path)
+                        
+                        if progress_bar:
+                            progress_bar.update(processed_count)
+                            
+                    except ray.exceptions.GetTimeoutError:
+                        logger.warning("Task timed out during final processing")
+                        continue
+                    except Exception as e:
+                        logger.error(f"Error in final processing: {e}")
+                        continue
             
-            if bar:
-                bar.close.remote()
+            if progress_bar:
+                progress_bar.close()
+                
+            # Clean up actors
+            for processor in processors:
+                ray.kill(processor)
+            
+            # Force garbage collection before reading results
+            gc.collect()
                 
         except KeyboardInterrupt:
-            # Handle interruption gracefully
+            logger.info("Processing interrupted by user")
+            raise
+        except Exception as e:
+            logger.error(f"Error during processing: {e}")
             raise
         finally:
             # Only shutdown Ray if we initialized it AND we're not using external Ray
             if should_shutdown:
                 ray.shutdown()
             gc.collect()
+        
+        # Read and combine results
+        try:
+            parquet_files = list(temp_dir.glob("batch_*.parquet"))
+            if not parquet_files:
+                raise ValueError("No batch files were created")
+                
+            note_feat = pl.read_parquet(parquet_files)
             
-        note_feat = pl.read_parquet('/tmp/epilepsy_nax_processing/batch_*.parquet')
-        note_feat = pl.DataFrame(note_feat)
-        for col1, col2 in kw_config['join_columns']:
-            if col1 in note_feat.columns and col2 in note_feat.columns:
-                note_feat = note_feat.with_columns(
-                    pl.max_horizontal(col1, col2).alias(col1)
-                ).drop(col2)
-        note_feat = note_feat.rename({col : f'{col}_' for col in note_feat.columns})
-        note_feat = note_feat.hstack(note_df.select(['id', 'date']))
-        note_feat = feat.join(
-            note_feat,
-            on=['id', 'date'],
-            how='left'
-        )
-        shutil.rmtree('/tmp/epilepsy_nax_processing', ignore_errors=True)
+            # Apply join columns logic
+            for col1, col2 in kw_config['join_columns']:
+                if col1 in note_feat.columns and col2 in note_feat.columns:
+                    note_feat = note_feat.with_columns(
+                        pl.max_horizontal(col1, col2).alias(col1)
+                    ).drop(col2)
+            
+            # Rename columns and join with original data
+            note_feat = note_feat.rename({col: f'{col}_' for col in note_feat.columns})
+            note_feat = note_feat.hstack(note_df.select(['id', 'date']))
+            note_feat = feat.join(note_feat, on=['id', 'date'], how='left')
+            
+        finally:
+            # Clean up temporary files
+            shutil.rmtree(temp_dir, ignore_errors=True)
+        
         return note_feat
     
     def predict(self, feat : pl.DataFrame) -> pl.DataFrame:

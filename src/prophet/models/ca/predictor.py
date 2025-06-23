@@ -15,6 +15,9 @@ import gc
 import os
 from glob import glob
 import shutil
+import psutil
+import tempfile
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -125,120 +128,197 @@ class CAModel(_BaseModel):
         return icd_feat
 
     def _preprocess_note(self, note_df: pl.DataFrame, feat: pl.DataFrame, show_progress=False) -> pl.DataFrame:
+        # Text preprocessing
         note_df = note_df.with_columns(
             pl.col('note').str.replace_all(r'[^a-zA-Z0-9 \n\.]', '')
             .str.replace_all(r'\s+', ' ')
             .str.strip_chars()
             .str.to_lowercase()
         )
-        kw_names = {x : set(x.split(' ')) for x in self.config['parameters']['kws']}
+        
+        # Prepare keyword configurations - note the hardcoded negate_words for CA model
+        kw_names = {x: set(x.split(' ')) for x in self.config['parameters']['kws']}
         negate_words = set(['no', 'not', 'dont', 'absent', 'ho', 'pmh', 'negat', 'histori', 'unlik', 'without', 'lack', 'defer'])
 
+        # Ray initialization with memory management
         ray_was_initialized = ray.is_initialized()
         
         if not ray_was_initialized and not self.external_ray:
-            ray.init()
+            # Initialize Ray with memory limits to prevent OOM
+            ray.init(
+                object_store_memory=int(0.2 * psutil.virtual_memory().total),  # 20% of total memory
+                _memory=int(0.3 * psutil.virtual_memory().total),  # 30% for worker processes
+                _redis_max_memory=int(0.05 * psutil.virtual_memory().total)
+            )
             should_shutdown = True
         else:
             should_shutdown = False
 
         try:
-            # Use fixed batch size of 1000 rows for consistent memory usage
-            batch_size = 1000
+            # Use smaller batch size for better memory management
+            batch_size = 500  # Reduced from 1000
             num_cpus = int(ray.available_resources().get("CPU", 1))
             total_notes = len(note_df)
             
-            if show_progress:
-                remote_tqdm = ray.remote(tqdm_ray.tqdm)
-                bar = remote_tqdm.remote(total=len(note_df), desc='Processing notes')
-            else:
-                bar = None
-
-            @ray.remote
-            def process_note_batch(text_batch, stemmer_r, bar):
-                """Process a batch of notes instead of individual notes"""
-                batch_results = []
-                
-                for text in text_batch:
-                    feature_vector = dict.fromkeys(kw_names, 0)
-                    feature_vector.update({f'{x}_neg' : 0 for x in kw_names})
-                    sentences = sent_tokenize(text)
-                    for s in sentences:
-                        stem_words = set(stemmer_r.stem(word) for word in word_tokenize(s))
-                        for bag, words in kw_names.items():
-                            if words.issubset(stem_words):
-                                if negate_words.intersection(stem_words):
-                                    feature_vector[f'{bag}_neg'] = 1
-                                else:
-                                    feature_vector[bag] = 1
-                    batch_results.append(feature_vector)
-                    
-                    # Update progress for each note in the batch
-                    if bar:
-                        bar.update.remote(1)
-                
-                return batch_results                  
+            # Create temporary directory with better path handling
+            temp_dir = Path(tempfile.mkdtemp(prefix="ca_processing_"))
             
-            # Split notes into fixed-size batches of 1000 rows each
+            if show_progress:
+                # Use tqdm without ray.remote wrapper for simplicity
+                from tqdm import tqdm
+                progress_bar = tqdm(total=total_notes, desc='Processing CA notes')
+            else:
+                progress_bar = None
+
+            @ray.remote(num_cpus=1)  # Explicitly set resource requirements
+            class CAProcessor:
+                def __init__(self):
+                    self.stemmer = SnowballStemmer('english')
+                    self.kw_names = kw_names
+                    self.negate_words = negate_words
+                
+                def process_batch(self, text_batch, batch_id):
+                    """Process a batch of notes with explicit memory management"""
+                    batch_results = []
+                    
+                    try:
+                        for text in text_batch:
+                            feature_vector = dict.fromkeys(self.kw_names, 0)
+                            feature_vector.update({f'{x}_neg': 0 for x in self.kw_names})
+                            
+                            sentences = sent_tokenize(text)
+                            for s in sentences:
+                                stem_words = set(self.stemmer.stem(word) for word in word_tokenize(s))
+                                
+                                for bag, words in self.kw_names.items():
+                                    if words.issubset(stem_words):
+                                        if self.negate_words.intersection(stem_words):
+                                            feature_vector[f'{bag}_neg'] = 1
+                                        else:
+                                            feature_vector[bag] = 1
+                            
+                            batch_results.append(feature_vector)
+                        
+                        # Convert to DataFrame and save immediately
+                        batch_df = pl.DataFrame(batch_results)
+                        output_path = temp_dir / f"batch_{batch_id}.parquet"
+                        batch_df.write_parquet(output_path)
+                        
+                        # Force garbage collection
+                        del batch_results, batch_df
+                        gc.collect()
+                        
+                        return len(text_batch), str(output_path)
+                        
+                    except Exception as e:
+                        logger.error(f"Error processing batch {batch_id}: {e}")
+                        raise
+
+            # Create processor actors with your preferred concurrency
+            max_concurrent_actors = max(1, num_cpus - 2)  # Use your preferred num_cpus - 2
+            processors = [CAProcessor.remote() for _ in range(max_concurrent_actors)]
+            
+            # Split notes into batches
             notes_list = note_df['note'].to_list()
             note_batches = [notes_list[i:i + batch_size] for i in range(0, len(notes_list), batch_size)]
             
-            logger.info(f"Processing {total_notes} notes in {len(note_batches)} batches of {batch_size} notes each using {num_cpus} CPUs")
+            logger.info(f"Processing {total_notes} notes in {len(note_batches)} batches using {max_concurrent_actors} actors")
             
-            # Use ray.wait() to limit pending tasks and avoid memory pressure
-            MAX_PENDING_TASKS = num_cpus * 2  # Keep 2x CPU cores worth of tasks pending
+            # Process batches with controlled concurrency
+            futures = []
             batch_counter = 0
-            result_refs = []
-            note_feat = []
-            os.makedirs("/tmp/ca_nax_processing", exist_ok=True)
+            completed_files = []
             
-            # Put stemmer in object store once to avoid repeated serialization
-            stemmer_ref = ray.put(SnowballStemmer('english'))
-            
+            # Submit initial batches
             for i, batch in enumerate(note_batches):
-                # Apply backpressure - wait for tasks to complete if we have too many pending
-                if len(result_refs) >= MAX_PENDING_TASKS:
-                    ready_refs, result_refs = ray.wait(result_refs, num_returns=1)
-                    # Process completed results immediately to free memory
-                    completed_results = ray.get(ready_refs)
-                    batch_df = pl.DataFrame([item for batch_result in completed_results for item in batch_result])
-                    batch_df.write_parquet(f"/tmp/ca_nax_processing/batch_{batch_counter}.parquet")
-                    batch_counter += 1
+                processor = processors[i % len(processors)]
+                future = processor.process_batch.remote(batch, batch_counter)
+                futures.append(future)
+                batch_counter += 1
+                
+                # Control memory by limiting pending tasks
+                if len(futures) >= max_concurrent_actors * 2:
+                    # Wait for at least one to complete
+                    ready, futures = ray.wait(futures, num_returns=1, timeout=None)
                     
-                # Submit new task
-                result_refs.append(process_note_batch.remote(batch, stemmer_ref, bar))
+                    # Process completed results
+                    for ready_ref in ready:
+                        try:
+                            processed_count, file_path = ray.get(ready_ref)
+                            completed_files.append(file_path)
+                            
+                            if progress_bar:
+                                progress_bar.update(processed_count)
+                                
+                        except Exception as e:
+                            logger.error(f"Error getting result: {e}")
+                            continue
             
-            # Process any remaining tasks
-            if result_refs:
-                remaining_results = ray.get(result_refs)
-                batch_df = pl.DataFrame([item for batch_result in remaining_results for item in batch_result])
-                batch_df.write_parquet(f"/tmp/ca_nax_processing/batch_{batch_counter}.parquet")
+            # Wait for remaining tasks with better handling
+            while futures:
+                ready, futures = ray.wait(futures, num_returns=len(futures), timeout=60)
+                
+                for ready_ref in ready:
+                    try:
+                        processed_count, file_path = ray.get(ready_ref, timeout=30)
+                        completed_files.append(file_path)
+                        
+                        if progress_bar:
+                            progress_bar.update(processed_count)
+                            
+                    except ray.exceptions.GetTimeoutError:
+                        logger.warning("Task timed out during final processing")
+                        continue
+                    except Exception as e:
+                        logger.error(f"Error in final processing: {e}")
+                        continue
             
-            if bar:
-                bar.close.remote()
+            if progress_bar:
+                progress_bar.close()
+                
+            # Clean up actors
+            for processor in processors:
+                ray.kill(processor)
+            
+            # Force garbage collection before reading results
+            gc.collect()
                 
         except KeyboardInterrupt:
-            # Handle interruption gracefully
+            logger.info("Processing interrupted by user")
+            raise
+        except Exception as e:
+            logger.error(f"Error during processing: {e}")
             raise
         finally:
             # Only shutdown Ray if we initialized it AND we're not using external Ray
             if should_shutdown:
                 ray.shutdown()
             gc.collect()
+        
+        # Read and combine results
+        try:
+            parquet_files = list(temp_dir.glob("batch_*.parquet"))
+            if not parquet_files:
+                raise ValueError("No batch files were created")
+                
+            note_feat = pl.read_parquet(parquet_files)
             
-        note_feat = pl.read_parquet('/tmp/ca_nax_processing/batch_*.parquet')            
-        note_feat = pl.DataFrame(note_feat)
-        note_feat = note_feat.rename({col : f'{col}_' for col in note_feat.columns})
-        note_feat = note_feat.hstack(note_df.select(['index', 'id', 'date']))
-        note_feat = feat.join(
-            note_feat,
-            on=['index', 'id', 'date'],
-            how='left',
-            validate='1:1'
-        )
-        shutil.rmtree('/tmp/ca_nax_processing', ignore_errors=True)
+            # Rename columns and join with original data - preserving CA model's specific columns
+            note_feat = note_feat.rename({col: f'{col}_' for col in note_feat.columns})
+            note_feat = note_feat.hstack(note_df.select(['index', 'id', 'date']))  # CA model includes 'date'
+            note_feat = feat.join(
+                note_feat,
+                on=['index', 'id', 'date'],  # CA model joins on index, id, AND date
+                how='left',
+                validate='1:1'
+            )
+            
+        finally:
+            # Clean up temporary files
+            shutil.rmtree(temp_dir, ignore_errors=True)
+        
         return note_feat
-    
+
     def predict(self, feat : pl.DataFrame) -> pl.DataFrame:
         """
         Run the model on the provided features.

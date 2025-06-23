@@ -25,6 +25,7 @@ dependencies = [
     "pyarrow",
     "seaborn",
     "matplotlib",
+    "xgboost",
 ]
 
 [tool.hatch.build.sources]

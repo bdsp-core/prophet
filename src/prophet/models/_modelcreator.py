@@ -19,8 +19,18 @@ class _ModelCreator:
         "subdural_hematoma": (".models.sdh.predictor", "SDHModel"),
         "traumatic_brain_injury": (".models.tbi.predictor", "TBIModel"),
         "intracranial_hemorrhage": (".models.ich.predictor", "ICHModel"),
-        # "ischemic_stroke": (".models.is.predictor", "ISModel"),
-        "mild_cognitive_impairment": (".models.is.predictor", "ISModel"),
+        "ischemic_stroke": (".models.is.predictor", "ISModel"),
+        # "mild_cognitive_impairment": (".models.mci.predictor", "MCIModel"),
+        # "epilepsy_subtypes": (".models.epilepsy_subtypes.predictor", "EpilepsySubtypesModel"),
+        # "neuroinfectious_diseases": (".models.nidx.predictor", "NIDXModel"),
+        # "nihss": (".models.nihss.predictor", "NIHSSModel"),
+        # "mrs" : (".models.mrs.predictor", "MRSModel"),
+        # "wlst": (".models.wlst.predictor", "WLSTModel"),
+        # "atrial_fibrillation_icd": (".models.af.predictor", "AFModelICD"),
+        # "myocardial_infarction_icd": (".models.mi.predictor", "MIModelICD"),
+        # "ischemic_stroke_icd": (".models.is_icd.predictor", "ISModelICD"),
+        # "coronary_artery_disease_icd": (".models.cad.predictor", "CADModelICD"),
+        # "diabetes_mellitus_icd": (".models.dm.predictor", "DMModelICD"),
         # Add more models here following the pattern: "model_name": ("module.path", "ClassName")
     }
     
@@ -33,7 +43,14 @@ class _ModelCreator:
         "sdh": "subdural_hematoma",
         "tbi": "traumatic_brain_injury",
         "ich": "intracranial_hemorrhage",
-        # "is": "ischemic_stroke",
+        "is": "ischemic_stroke",
+        # "mci": "mild_cognitive_impairment",
+        # "nidx": "neuroinfectious_diseases",
+        # "af" : "atrial_fibrillation",
+        # "mi" : "myocardial_infarction",
+        # "is_icd" : "ischemic_stroke_icd",
+        # "cad" : "coronary_artery_disease",
+        # "dm" : "diabetes_mellitus",
         # Add more aliases here following the pattern: "alias": "canonical_name"
     }
     
