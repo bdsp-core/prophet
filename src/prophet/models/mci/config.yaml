@@ -1,0 +1,20 @@
+model_path: mci_model.joblib
+credits: 
+schema:
+  icd:
+    id : !pl String
+    icd : !pl String
+    date : !pl Date
+  med:
+    id : !pl String
+    med : !pl String
+    date : !pl Date
+  note:
+    id : !pl String
+    note : !pl String
+    date : !pl Date
+parameters:
+  threshold: 
+  icd: ['^F00','^G30\.0','^G30\.1','^G30\.8','^G30\.9','^290\.0','^290\.2.*','^290\.3','^331\.0','^F01\..*','^290\.4.*','^G31\.0','^G31\.01','^G31\.09','^311\.11','^331\.19','^F02\.8.*','^F03\.9.*','^294\.1.*','^294\.2.*','^F06\.7','^331\.83']
+  med: ['aricept','donepezil','exelon','rivastigmine','memantine','namenda','namzaric','razadyne','galantamine']
+  final_cols: ['icd', 'med', 'note']
