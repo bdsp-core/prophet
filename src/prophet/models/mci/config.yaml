@@ -1,5 +1,6 @@
 model_path: mci_model.joblib
-credits: 
+credits: 'Wei R, Buss SS, Milde R, Fernandes M, Sumsion D, Davis E, Kong WY, Xiong Y, Veltink J, Rao S, Westover TM, Petersen L, Turley N, Singh A, Das S, Junior VM, Ghanta M, Gupta A, Kim J, Lam AD, Stone KL, Mignot E, Hwang D, Trotti LM, Clifford GD, Katwa U, Thomas RJ, Mukerji S, Zafar SF, Westover MB, Sun H. Automated phenotyping of mild cognitive impairment and Alzheimer's disease and related dementias using electronic health records. Int J Med Inform. 2025 Aug;200:105917. doi: 10.1016/j.ijmedinf.2025.105917. Epub 2025 Apr 11. PMID: 40222334.'
+paper_link: 'https://www.sciencedirect.com/science/article/abs/pii/S1386505625001340'
 schema:
   icd:
     id : !pl String

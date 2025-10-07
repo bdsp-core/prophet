@@ -174,3 +174,5 @@ tests/
 *.vsix
 
 **/models/archive/
+
+**/models/**/data/

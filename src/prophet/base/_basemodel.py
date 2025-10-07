@@ -98,6 +98,25 @@ class _BaseModel(ABC):
             
         config = cls.load_config(config_path)
         return config.get('credits', {})
+    
+    @classmethod
+    def get_paper_link(cls, config_path=None):
+        """
+        Class method to get default paper link information
+        
+        Args:
+            config_path: Path to the config file, defaults to class's DEFAULT_CONFIG_PATH
+            
+        Returns:
+            Dictionary containing the schema information
+        """
+        if config_path is None:
+            if cls.DEFAULT_CONFIG_PATH is None:
+                raise ValueError(f"No default config path defined for {cls.__name__}")
+            config_path = cls.DEFAULT_CONFIG_PATH
+            
+        config = cls.load_config(config_path)
+        return config.get('paper_link', {})
 
     def preprocess(self, data, show_progress=False, force_casting=False) -> Dict[str, pl.DataFrame]:
         '''Check that data is in the correct format, removing any unnecessary or empty columns/rows, and converting to proper types.'''

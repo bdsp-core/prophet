@@ -1,5 +1,6 @@
 model_path: brain_tumor.joblib
-credits: 
+credits: 'Unpublished model developed by Lydia Peterson. Will be included in the PROPHET publication.'
+paper_link: 
 schema:
   note:
     id : !pl String

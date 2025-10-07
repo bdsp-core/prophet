@@ -1,4 +1,5 @@
-credits: 
+credits: 'Woodfield R, Grant I; UK Biobank Stroke Outcomes Group; UK Biobank Follow-Up and Outcomes Working Group; Sudlow CL. Accuracy of Electronic Health Record Data for Identifying Stroke Cases in Large-Scale Epidemiological Studies: A Systematic Review from the UK Biobank Stroke Outcomes Group. PLoS One. 2015 Oct 23;10(10):e0140533. doi: 10.1371/journal.pone.0140533. PMID: 26496350; PMCID: PMC4619732.'
+paper_link: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC4619732/'
 schema:
   icd:
     id : !pl String

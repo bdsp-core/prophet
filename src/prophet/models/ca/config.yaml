@@ -1,5 +1,6 @@
 model_path: ca_model.joblib
-credits: 
+credits: 'Unpublished model developed by Catherine Clive. Will be included in the PROPHET publication.'
+paper_link: 
 schema:
   icd:
     id : !pl String

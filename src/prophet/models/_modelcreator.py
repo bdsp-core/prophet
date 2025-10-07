@@ -20,7 +20,8 @@ class _ModelCreator:
         "traumatic_brain_injury": (".models.tbi.predictor", "TBIModel"),
         "intracranial_hemorrhage": (".models.ich.predictor", "ICHModel"),
         "ischemic_stroke": (".models.is.predictor", "ISModel"),
-        # "mild_cognitive_impairment": (".models.mci.predictor", "MCIModel"),
+        "narcolepsy": (".models.narcolepsy.predictor", "NarcolepsyModel"),
+        "mild_cognitive_impairment": (".models.mci.predictor", "MCIModel"),
         # "epilepsy_subtypes": (".models.epilepsy_subtypes.predictor", "EpilepsySubtypesModel"),
         # "neuroinfectious_diseases": (".models.nidx.predictor", "NIDXModel"),
         # "nihss": (".models.nihss.predictor", "NIHSSModel"),
@@ -44,7 +45,7 @@ class _ModelCreator:
         "tbi": "traumatic_brain_injury",
         "ich": "intracranial_hemorrhage",
         "is": "ischemic_stroke",
-        # "mci": "mild_cognitive_impairment",
+        "mci": "mild_cognitive_impairment",
         # "nidx": "neuroinfectious_diseases",
         "af" : "atrial_fibrillation",
         "mi" : "myocardial_infarction",
@@ -142,7 +143,7 @@ class _ModelCreator:
             model_class = getattr(module, class_name)
             
             # Call static method
-            return model_class.get_credits()
+            return model_class.get_credits() + '\n' + model_class.get_paper_link()
         except Exception as e:
             logger.error(f"Error getting credits for {canonical_name}: {str(e)}")
             raise RuntimeError(f"Failed to get credits for '{canonical_name}'. Error: {str(e)}") from e

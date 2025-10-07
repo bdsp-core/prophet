@@ -1,5 +1,6 @@
 model_path: is_model.joblib
-credits: 
+credits: 'Unpublished model developed by Rebecca Milde and Niels Turley. Will be included in the PROPHET publication.'
+paper_link: 
 schema:
   icd:
     id : !pl String

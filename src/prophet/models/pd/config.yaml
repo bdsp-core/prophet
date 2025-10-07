@@ -1,5 +1,6 @@
 model_path: pd_model.joblib
-credits: 
+credits: 'Unpublished model developed by Bram Overmeer. Will be included in the PROPHET publication.'
+paper_link: 
 schema:
   icd:
     id : !pl String

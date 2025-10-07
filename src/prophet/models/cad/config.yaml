@@ -1,5 +1,6 @@
-credits: 
-schema:
+credits: 'Joseph A, Mullett C, Lilly C, Armistead M, Cox HJ, Denney M, Varma M, Rich D, Adjeroh DA, Doretto G, Neal W, Pyles LA. Coronary Artery Disease Phenotype Detection in an Academic Hospital System Setting. Appl Clin Inform. 2021 Jan;12(1):10-16. doi: 10.1055/s-0040-1721012. Epub 2021 Jan 6. PMID: 33406541; PMCID: PMC7787710.'
+paper_link: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC7787710/' 
+schema: 
   icd:
     id : !pl String
     icd : !pl String

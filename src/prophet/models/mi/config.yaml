@@ -1,4 +1,5 @@
-credits: 
+credits: 'Saunders-Hastings P, Heong SW, Srichaikul J, Wong HL, Shoaibi A, et al. (2021) Acute myocardial infarction: Development and application of an ICD-10-CM-based algorithm to a large U.S. healthcare claims-based database. PLOS ONE 16(7): e0253580. https://doi.org/10.1371/journal.pone.0253580'
+paper_link: 'https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0253580'
 schema:
   icd:
     id : !pl String

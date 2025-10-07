@@ -1,4 +1,5 @@
-credits: 
+credits: 'Chamberlain AM, Roger VL, Noseworthy PA, Chen LY, Weston SA, Jiang R, Alonso A. Identification of Incident Atrial Fibrillation From Electronic Medical Records. J Am Heart Assoc. 2022 Apr 5;11(7):e023237. doi: 10.1161/JAHA.121.023237. Epub 2022 Mar 29. PMID: 35348008; PMCID: PMC9075468.'
+paper_link: 'https://pubmed.ncbi.nlm.nih.gov/35348008/'
 schema:
   icd:
     id : !pl String

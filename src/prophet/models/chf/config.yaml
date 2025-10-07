@@ -1,5 +1,6 @@
 model_path: chf_model.joblib
-credits: 'Sumsion, Daniel & Davis, Elijah & Fernandes, Marta & Wei, Ruoqi & Milde, Rebecca & Veltink, Jet & Kong, Wan-Yee & Xiong, Yiwen & Rao, Samvrit & Westover, Tara & Petersen, Lydia & Turley, Niels & Singh, Arjun & Buss, Stephanie & Mukerji, Shibani & Zafar, Sahar & Das, Sudeshna & Moura Junior, Valdery & Ghanta, Manohar & Sun, Haoqi. (2024). Identification of Patients with Congestive Heart Failure from Electronic Health Records: A Retrospective Study of Two Hospitals (Preprint). JMIR Medical Informatics. 10.2196/64113.' 
+credits: 'Sumsion D, Davis E, Fernandes M, Wei R, Milde R, Veltink JM, Kong WY, Xiong Y, Rao S, Westover T, Petersen L, Turley N, Singh A, Buss S, Mukerji S, Zafar S, Das S, Junior VM, Ghanta M, Gupta A, Kim J, Stone K, Mignot E, Hwang D, Trotti LM, Clifford GD, Katwa U, Thomas R, Westover MB, Sun H. Identification of Patients With Congestive Heart Failure From the Electronic Health Records of Two Hospitals: Retrospective Study. JMIR Med Inform. 2025 Apr 10;13:e64113. doi: 10.2196/64113. PMID: 40208662; PMCID: PMC12022513.'
+paper_link: 'https://pubmed.ncbi.nlm.nih.gov/40208662/'
 schema:
   icd:
     id : !pl String

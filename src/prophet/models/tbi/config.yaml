@@ -1,5 +1,6 @@
 model_path: tbi_model.joblib
-credits: 
+credits: 'Unpublished model developed by Spencer Boris. Will be included in the PROPHET publication.'
+paper_link: 
 schema:
   icd:
     id : !pl String
@@ -10,7 +11,7 @@ schema:
     note : !pl String
     date : !pl Date
 parameters:
-  threshold: 
+  threshold: 0.45
   dt_offset: "6mo"
   icd: ['^S06', '^850', '^851', '^852', '^853', '^854']
   kws: ['subarachnoid hemorrhag', 'brain injuri', 'cerebr edema', 'concuss', 'contus', 'diffus axon injuri', 'epidur hematoma', 'head injuri', 'intracrani hemorrhag', 'sah', 'sdh', 'subdur hematoma', 'subdur hemorrhag', 'tbi', 'traumat brain injuri', 'traumat sah', 'head trauma', 'alter mental status', 'ataxia', 'ct', 'confus', 'ct head', 'disori', 'dizzi', 'dysarthria', 'gcs', 'head ct', 'headach', 'hemorrhag', 'hydrocephalus', 'loc', 'loss of conscious', 'pneumocephalus', 'post-traumat', 'syncop', 'vomit', 'post-traumat', 'head strike', 'accid', 'mva', 'mvc', 'pedestrian', 'down stair', 'unwit', 'sustain', 'back of', 'mechan', 'parenchym', 'acut', 'diffus', 'facial fractur', 'head trauma', 'intracrani', 'trauma', 'traumat', 'bl', 'bilater', 'caa', 'spontan', 'atraumat', 'aneurysm', 'ruptur', 'chronic', 'htn', 'hypertens', 'malform', 'coil', 'anticoagul', 'avm', 'vascular malform', 'ischem', 'stroke', 'cardiac arrest', 'cancer', 'met', 'fall', 'stair', 'sp mechan', 'risk', 'balanc', 'struck', 'strike', 'sp', 'fractur']
