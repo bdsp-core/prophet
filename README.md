@@ -4,6 +4,11 @@
 
 A high-throughput EHR phenotyping framework combining machine learning and natural language processing (NLP) for scalable identification of neurological diagnoses, severity scales, and outcomes from electronic health records.
 
+> **Where this fits.** **L4 — derive & enrich on the de-identified OMOP CDM**, in the BDSP OMOP
+> repo family. The epilepsy cohort in OMOP (131,597 patients, cohort definition 2000001000) was
+> built with it. Sibling of `prophet-sleep`, which applies the same approach to sleep.
+> Family members carry the topic `bdsp-omop`.
+
 ## Overview
 
 Prophet provides a modular, configurable pipeline for phenotyping patients from EHR data. It extracts features from clinical notes (NLP keyword matching with negation detection), ICD codes, CPT codes, and medications, then classifies patients using pre-trained machine learning models. The framework is designed for population-scale deployment, processing millions of clinical notes in hours.
