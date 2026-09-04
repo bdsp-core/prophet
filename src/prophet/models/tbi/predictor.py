@@ -127,209 +127,219 @@ class TBIModel(_BaseModel):
         ).fill_null(0)
         return icd_feat
 
-def _preprocess_note(self, note_df: pl.DataFrame, feat: pl.DataFrame, show_progress=False) -> pl.DataFrame:
-    # Text preprocessing - TBI model uses standard preprocessing
-    note_df = note_df.with_columns(
-        pl.col('note').str.replace_all(r'[^a-zA-Z0-9 \n\.]', '')
-        .str.replace_all(r'\s+', ' ')
-        .str.strip_chars()
-        .str.to_lowercase()
-    )
-    
-    # Prepare keyword configurations - TBI model has strike words for head trauma detection
-    kw_names = {x: set(x.split(' ')) for x in self.config['parameters']['kws']}
-    negate_words = set(self.config['parameters']['neg_kws'])
-    strike_words = set(self.config['parameters']['strike_kws'])  # TBI model tracks strike/impact words
-
-    # Ray initialization with memory management
-    ray_was_initialized = ray.is_initialized()
-    
-    if not ray_was_initialized and not self.external_ray:
-        # Initialize Ray with memory limits to prevent OOM
-        ray.init(
-            object_store_memory=int(0.2 * psutil.virtual_memory().total),  # 20% of total memory
-            _memory=int(0.3 * psutil.virtual_memory().total),  # 30% for worker processes
-            _redis_max_memory=int(0.05 * psutil.virtual_memory().total)
+    def _preprocess_note(self, note_df: pl.DataFrame, feat: pl.DataFrame, show_progress=False) -> pl.DataFrame:
+        # Text preprocessing - TBI model uses standard preprocessing
+        note_df = note_df.with_columns(
+            pl.col('note').str.replace_all(r'[^a-zA-Z0-9 \n\.]', '')
+            .str.replace_all(r'\s+', ' ')
+            .str.strip_chars()
+            .str.to_lowercase()
         )
-        should_shutdown = True
-    else:
-        should_shutdown = False
+    
+        # Prepare keyword configurations - TBI model has strike words for head trauma detection
+        kw_names = {x: set(x.split(' ')) for x in self.config['parameters']['kws']}
+        negate_words = set(self.config['parameters']['neg_kws'])
+        strike_words = set(self.config['parameters']['strike_kws'])  # TBI model tracks strike/impact words
 
-    try:
-        # Use smaller batch size for better memory management
-        batch_size = 500  # Reduced from 1000
-        num_cpus = int(ray.available_resources().get("CPU", 1))
-        total_notes = len(note_df)
-        
-        # Create temporary directory with better path handling
-        temp_dir = Path(tempfile.mkdtemp(prefix="tbi_processing_"))
-        
-        if show_progress:
-            # Use tqdm without ray.remote wrapper for simplicity
-            from tqdm import tqdm
-            progress_bar = tqdm(total=total_notes, desc='Processing TBI notes')
+        # Ray initialization with memory management
+        ray_was_initialized = ray.is_initialized()
+    
+        if not ray_was_initialized and not self.external_ray:
+            # Initialize Ray with memory limits to prevent OOM
+            ray.init(
+                object_store_memory=int(0.2 * psutil.virtual_memory().total),  # 20% of total memory
+                _memory=int(0.3 * psutil.virtual_memory().total),  # 30% for worker processes
+                _redis_max_memory=int(0.05 * psutil.virtual_memory().total)
+            )
+            should_shutdown = True
         else:
-            progress_bar = None
+            should_shutdown = False
 
-        @ray.remote(num_cpus=1)  # Explicitly set resource requirements
-        class TBIProcessor:
-            def __init__(self):
-                self.stemmer = SnowballStemmer('english')
-                self.kw_names = kw_names
-                self.negate_words = negate_words
-                self.strike_words = strike_words
+        try:
+            # Use smaller batch size for better memory management
+            batch_size = 500  # Reduced from 1000
+            num_cpus = int(ray.available_resources().get("CPU", 1))
+            total_notes = len(note_df)
+        
+            # Create temporary directory with better path handling
+            temp_dir = Path(tempfile.mkdtemp(prefix="tbi_processing_"))
+        
+            if show_progress:
+                # Use tqdm without ray.remote wrapper for simplicity
+                from tqdm import tqdm
+                progress_bar = tqdm(total=total_notes, desc='Processing TBI notes')
+            else:
+                progress_bar = None
+
+            @ray.remote(num_cpus=1)  # Explicitly set resource requirements
+            class TBIProcessor:
+                def __init__(self):
+                    self.stemmer = SnowballStemmer('english')
+                    self.kw_names = kw_names
+                    self.negate_words = negate_words
+                    self.strike_words = strike_words
             
-            def process_batch(self, text_batch, batch_id):
-                """Process a batch of notes with explicit memory management"""
-                batch_results = []
+                def process_batch(self, text_batch, batch_id):
+                    """Process a batch of notes with explicit memory management"""
+                    batch_results = []
                 
-                try:
-                    for text in text_batch:
-                        # TBI model creates standard pos/neg features PLUS custom strike features
-                        feature_vector = dict.fromkeys(self.kw_names, 0)
-                        feature_vector.update({f'{x}_neg': 0 for x in self.kw_names})
-                        feature_vector.update({'custom_hit_strike': 0, 'custom_hit_strike_neg': 0})  # Custom TBI features
+                    try:
+                        for text in text_batch:
+                            # TBI model creates standard pos/neg features PLUS custom strike features
+                            feature_vector = dict.fromkeys(self.kw_names, 0)
+                            feature_vector.update({f'{x}_neg': 0 for x in self.kw_names})
+                            feature_vector.update({'custom_hit_strike': 0, 'custom_hit_strike_neg': 0})  # Custom TBI features
                         
-                        sentences = sent_tokenize(text)
-                        for s in sentences:
-                            stem_words = set(self.stemmer.stem(word) for word in word_tokenize(s))
+                            sentences = sent_tokenize(text)
+                            for s in sentences:
+                                stem_words = set(self.stemmer.stem(word) for word in word_tokenize(s))
                             
-                            # TBI-specific logic: Check for strike words + "head"
-                            if stem_words.intersection(self.strike_words) and 'head' in stem_words:
-                                if self.negate_words.intersection(stem_words):
-                                    feature_vector['custom_hit_strike_neg'] = 1
-                                else:
-                                    feature_vector['custom_hit_strike'] = 1
-                            
-                            # Standard keyword processing
-                            for bag, words in self.kw_names.items():
-                                if words.issubset(stem_words):
+                                # TBI-specific logic: Check for strike words + "head"
+                                if stem_words.intersection(self.strike_words) and 'head' in stem_words:
                                     if self.negate_words.intersection(stem_words):
-                                        feature_vector[f'{bag}_neg'] = 1
+                                        feature_vector['custom_hit_strike_neg'] = 1
                                     else:
-                                        feature_vector[bag] = 1
+                                        feature_vector['custom_hit_strike'] = 1
+                            
+                                # Standard keyword processing
+                                for bag, words in self.kw_names.items():
+                                    if words.issubset(stem_words):
+                                        if self.negate_words.intersection(stem_words):
+                                            feature_vector[f'{bag}_neg'] = 1
+                                        else:
+                                            feature_vector[bag] = 1
                         
-                        batch_results.append(feature_vector)
+                            batch_results.append(feature_vector)
                     
-                    # Convert to DataFrame and save immediately
-                    batch_df = pl.DataFrame(batch_results)
-                    output_path = temp_dir / f"batch_{batch_id}.parquet"
-                    batch_df.write_parquet(output_path)
+                        # Convert to DataFrame and save immediately
+                        batch_df = pl.DataFrame(batch_results)
+                        output_path = temp_dir / f"batch_{batch_id}.parquet"
+                        batch_df.write_parquet(output_path)
                     
-                    # Force garbage collection
-                    del batch_results, batch_df
-                    gc.collect()
+                        # Force garbage collection
+                        del batch_results, batch_df
+                        gc.collect()
                     
-                    return len(text_batch), str(output_path)
+                        return len(text_batch), str(output_path)
                     
-                except Exception as e:
-                    logger.error(f"Error processing batch {batch_id}: {e}")
-                    raise
+                    except Exception as e:
+                        logger.error(f"Error processing batch {batch_id}: {e}")
+                        raise
 
-        # Create processor actors with your preferred concurrency
-        max_concurrent_actors = max(1, num_cpus - 2)  # Use your preferred num_cpus - 2
-        processors = [TBIProcessor.remote() for _ in range(max_concurrent_actors)]
+            # Create processor actors with your preferred concurrency
+            max_concurrent_actors = max(1, num_cpus - 2)  # Use your preferred num_cpus - 2
+            processors = [TBIProcessor.remote() for _ in range(max_concurrent_actors)]
         
-        # Split notes into batches
-        notes_list = note_df['note'].to_list()
-        note_batches = [notes_list[i:i + batch_size] for i in range(0, len(notes_list), batch_size)]
+            # Split notes into batches
+            notes_list = note_df['note'].to_list()
+            note_batches = [notes_list[i:i + batch_size] for i in range(0, len(notes_list), batch_size)]
         
-        logger.info(f"Processing {total_notes} notes in {len(note_batches)} batches using {max_concurrent_actors} actors")
+            logger.info(f"Processing {total_notes} notes in {len(note_batches)} batches using {max_concurrent_actors} actors")
         
-        # Process batches with controlled concurrency
-        futures = []
-        batch_counter = 0
-        completed_files = []
+            # Process batches with controlled concurrency
+            futures = []
+            batch_counter = 0
+            completed_files = []
         
-        # Submit initial batches
-        for i, batch in enumerate(note_batches):
-            processor = processors[i % len(processors)]
-            future = processor.process_batch.remote(batch, batch_counter)
-            futures.append(future)
-            batch_counter += 1
+            # Submit initial batches
+            for i, batch in enumerate(note_batches):
+                processor = processors[i % len(processors)]
+                future = processor.process_batch.remote(batch, batch_counter)
+                futures.append(future)
+                batch_counter += 1
             
-            # Control memory by limiting pending tasks
-            if len(futures) >= max_concurrent_actors * 2:
-                # Wait for at least one to complete
-                ready, futures = ray.wait(futures, num_returns=1, timeout=None)
+                # Control memory by limiting pending tasks
+                if len(futures) >= max_concurrent_actors * 2:
+                    # Wait for at least one to complete
+                    ready, futures = ray.wait(futures, num_returns=1, timeout=None)
                 
-                # Process completed results
+                    # Process completed results
+                    for ready_ref in ready:
+                        try:
+                            processed_count, file_path = ray.get(ready_ref)
+                            completed_files.append(file_path)
+                        
+                            if progress_bar:
+                                progress_bar.update(processed_count)
+                            
+                        except Exception as e:
+                            logger.error(f"Error getting result: {e}")
+                            continue
+        
+            # Wait for remaining tasks with better handling
+            while futures:
+                ready, futures = ray.wait(futures, num_returns=len(futures), timeout=60)
+            
                 for ready_ref in ready:
                     try:
-                        processed_count, file_path = ray.get(ready_ref)
+                        processed_count, file_path = ray.get(ready_ref, timeout=30)
                         completed_files.append(file_path)
-                        
+                    
                         if progress_bar:
                             progress_bar.update(processed_count)
-                            
+                        
+                    except ray.exceptions.GetTimeoutError:
+                        logger.warning("Task timed out during final processing")
+                        continue
                     except Exception as e:
-                        logger.error(f"Error getting result: {e}")
+                        logger.error(f"Error in final processing: {e}")
                         continue
         
-        # Wait for remaining tasks with better handling
-        while futures:
-            ready, futures = ray.wait(futures, num_returns=len(futures), timeout=60)
+            if progress_bar:
+                progress_bar.close()
             
-            for ready_ref in ready:
-                try:
-                    processed_count, file_path = ray.get(ready_ref, timeout=30)
-                    completed_files.append(file_path)
-                    
-                    if progress_bar:
-                        progress_bar.update(processed_count)
-                        
-                except ray.exceptions.GetTimeoutError:
-                    logger.warning("Task timed out during final processing")
-                    continue
-                except Exception as e:
-                    logger.error(f"Error in final processing: {e}")
-                    continue
+            # Clean up actors
+            for processor in processors:
+                ray.kill(processor)
         
-        if progress_bar:
-            progress_bar.close()
+            # Force garbage collection before reading results
+            gc.collect()
             
-        # Clean up actors
-        for processor in processors:
-            ray.kill(processor)
-        
-        # Force garbage collection before reading results
-        gc.collect()
-            
-    except KeyboardInterrupt:
-        logger.info("Processing interrupted by user")
-        raise
-    except Exception as e:
-        logger.error(f"Error during processing: {e}")
-        raise
-    finally:
-        # Only shutdown Ray if we initialized it AND we're not using external Ray
-        if should_shutdown:
-            ray.shutdown()
-        gc.collect()
+        except KeyboardInterrupt:
+            logger.info("Processing interrupted by user")
+            raise
+        except Exception as e:
+            logger.error(f"Error during processing: {e}")
+            raise
+        finally:
+            # Only shutdown Ray if we initialized it AND we're not using external Ray
+            if should_shutdown:
+                ray.shutdown()
+            gc.collect()
     
-    # Read and combine results
-    try:
-        parquet_files = list(temp_dir.glob("batch_*.parquet"))
-        if not parquet_files:
-            raise ValueError("No batch files were created")
+        # Read and combine results
+        try:
+            parquet_files = sorted(temp_dir.glob("batch_*.parquet"),
+                                   key=lambda p: int(p.stem.split("_")[1]))  # batch order == note order
+            if not parquet_files:
+                raise ValueError("No batch files were created")
             
-        note_feat = pl.read_parquet(parquet_files)
+            note_feat = pl.read_parquet(parquet_files)
+
+            
+            if len(note_feat) != len(note_df):
+
+            
+                raise RuntimeError(f"note features for {len(note_feat)} notes but {len(note_df)} notes were given; "
+
+            
+                                   "a batch failed, and positional alignment would attach features to the wrong notes")
         
-        # Rename columns and join with original data - TBI model uses index+id+date
-        note_feat = note_feat.rename({col: f'{col}_' for col in note_feat.columns})
-        note_feat = note_feat.hstack(note_df.select(['index', 'id', 'date']))  # TBI model includes date
-        note_feat = feat.join(
-            note_feat,
-            on=['index', 'id', 'date'],  # TBI model: 3 columns like many others
-            how='left',
-            validate='1:1'
-        ).fill_null(0)  # TBI model fills null values with 0
+            # Rename columns and join with original data - TBI model uses index+id+date
+            note_feat = note_feat.rename({col: f'{col}_' for col in note_feat.columns})
+            note_feat = note_feat.hstack(note_df.select(['index', 'id', 'date']))  # TBI model includes date
+            note_feat = feat.join(
+                note_feat,
+                on=['index', 'id', 'date'],  # TBI model: 3 columns like many others
+                how='left',
+                validate='1:1'
+            ).fill_null(0)  # TBI model fills null values with 0
         
-    finally:
-        # Clean up temporary files
-        shutil.rmtree(temp_dir, ignore_errors=True)
+        finally:
+            # Clean up temporary files
+            shutil.rmtree(temp_dir, ignore_errors=True)
     
-    return note_feat
+        return note_feat
     
     def predict(self, feat : pl.DataFrame) -> pl.DataFrame:
         """

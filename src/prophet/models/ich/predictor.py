@@ -295,11 +295,21 @@ class ICHModel(_BaseModel):
         
         # Read and combine results
         try:
-            parquet_files = list(temp_dir.glob("batch_*.parquet"))
+            parquet_files = sorted(temp_dir.glob("batch_*.parquet"),
+                                   key=lambda p: int(p.stem.split("_")[1]))  # batch order == note order
             if not parquet_files:
                 raise ValueError("No batch files were created")
                 
             note_feat = pl.read_parquet(parquet_files)
+
+                
+            if len(note_feat) != len(note_df):
+
+                
+                raise RuntimeError(f"note features for {len(note_feat)} notes but {len(note_df)} notes were given; "
+
+                
+                                   "a batch failed, and positional alignment would attach features to the wrong notes")
             
             # Rename columns and join with original data - ICH model uses index+id+date
             note_feat = note_feat.rename({col: f'{col}_' for col in note_feat.columns})
