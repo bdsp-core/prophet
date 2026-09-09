@@ -266,6 +266,12 @@ class BrainTumorModel(_BaseModel):
                 
             note_feat = pl.read_parquet(parquet_files)
 
+            if len(note_feat) != len(note_df):
+                raise RuntimeError(
+                    f"note feature extraction produced {len(note_feat)} rows for "
+                    f"{len(note_df)} notes; a Ray batch failed to write its output"
+                )
+
             # Rename feature columns (keep index as the join key)
             feature_cols = [col for col in note_feat.columns if col != 'index']
             note_feat = note_feat.rename({col: f'{col}_' for col in feature_cols})

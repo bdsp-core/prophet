@@ -318,6 +318,12 @@ class TBIModel(_BaseModel):
                 raise ValueError("No batch files were created")
                 
             note_feat = pl.read_parquet(parquet_files)
+
+            if len(note_feat) != len(note_df):
+                raise RuntimeError(
+                    f"note feature extraction produced {len(note_feat)} rows for "
+                    f"{len(note_df)} notes; a Ray batch failed to write its output"
+                )
             
             # Rename feature columns (but not the index column) and join with original data using index
             feature_cols = [col for col in note_feat.columns if col != 'index']

@@ -440,6 +440,12 @@ class EpilepsyModel(_BaseModel):
                 raise ValueError("No batch files were created")
                 
             note_feat = pl.read_parquet(parquet_files)
+
+            if len(note_feat) != len(note_df):
+                raise RuntimeError(
+                    f"note feature extraction produced {len(note_feat)} rows for "
+                    f"{len(note_df)} notes; a Ray batch failed to write its output"
+                )
             
             # Apply join columns logic (before renaming)
             for col1, col2 in kw_config['join_columns']:
