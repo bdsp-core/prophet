@@ -1,0 +1,10 @@
+model_path: nihss_model.joblib
+credits: 'Mases-Garcia A, et al. Automated NIH Stroke Scale Scoring from Clinical Notes. Massachusetts General Hospital / Brigham and Women''s Hospital.'
+paper_link: ''
+schema:
+  note:
+    id : !pl String
+    note : !pl String
+    date : !pl Date
+parameters:
+  alpha: 0.01
