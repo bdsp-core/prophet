@@ -197,32 +197,32 @@ class Prophet:
                         result : Union[pl.DataFrame, Tuple[pl.DataFrame, pl.DataFrame]],
                         output_path: str):
         """Save a single prediction result to the specified directory.
-        
+
         Args:
             phenotype: The phenotype name used for the subdirectory
             result: Either predictions or (features, predictions) tuple
             output_path: Root directory path where results will be stored
         """
-        
+
         # Create phenotype subdirectory
         phenotype_dir = os.path.join(output_path, phenotype)
         os.makedirs(phenotype_dir, exist_ok=True)
-        
+
         # Check if result is a tuple (features, predictions)
         if isinstance(result, tuple) and len(result) == 2:
             features, predictions = result
-            has_features = True
+            has_features = features is not None
         else:
             predictions = result
             has_features = False
-        
+
         # Save predictions
         pred_path = os.path.join(phenotype_dir, "predictions.parquet")
         logger.info(f"Saving predictions to {pred_path}")
         predictions.write_parquet(pred_path)
-        
-        # Save features if available
-        if has_features:
+
+        # Save features if available and not None
+        if has_features and features is not None:
             feat_path = os.path.join(phenotype_dir, "features.parquet")
             logger.info(f"Saving features to {feat_path}")
             features.write_parquet(feat_path)

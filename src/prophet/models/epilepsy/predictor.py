@@ -252,14 +252,14 @@ class EpilepsyModel(_BaseModel):
         return med_feat
     
     def _preprocess_note(self, note_df: pl.DataFrame, feat: pl.DataFrame, show_progress=False) -> pl.DataFrame:
-        # Text preprocessing
-        note_df = note_df.with_columns(
+        # Text preprocessing - add row index before grouping
+        note_df = note_df.with_row_index().with_columns(
             pl.col('note').str.replace_all(r'[^a-zA-Z0-9 \n\.]', '')
             .str.replace_all(r'\s+', ' ')
             .str.strip_chars()
             .str.to_lowercase()
         ).group_by(['id', 'date']).agg(
-            pl.col('*').exclude('note'),
+            pl.col('index').first(),  # Keep the first index for each group
             pl.col('note').str.concat(delimiter=' ').alias('note')
         )
         
@@ -309,13 +309,17 @@ class EpilepsyModel(_BaseModel):
                     self.med_feat_names = med_feat_names
                     self.all_note_feat = all_note_feat
                 
-                def process_batch(self, text_batch, batch_id):
+                def process_batch(self, batch_data, batch_id):
                     """Process a batch of notes with explicit memory management"""
                     batch_results = []
                     
                     try:
-                        for text in text_batch:
+                        for item in batch_data:
+                            text = item['note']
+                            index = item['index']
+                            
                             feature_vector = dict.fromkeys(self.all_note_feat, 0)
+                            feature_vector['index'] = index  # Include the index
                             sentences = sent_tokenize(text)
                             
                             for s in sentences:
@@ -342,7 +346,7 @@ class EpilepsyModel(_BaseModel):
                         del batch_results, batch_df
                         gc.collect()
                         
-                        return len(text_batch), str(output_path)
+                        return len(batch_data), str(output_path)
                         
                     except Exception as e:
                         logger.error(f"Error processing batch {batch_id}: {e}")
@@ -352,9 +356,9 @@ class EpilepsyModel(_BaseModel):
             max_concurrent_actors = max(1, num_cpus - 2)
             processors = [BatchProcessor.remote() for _ in range(max_concurrent_actors)]
             
-            # Split notes into batches
-            notes_list = note_df['note'].to_list()
-            note_batches = [notes_list[i:i + batch_size] for i in range(0, len(notes_list), batch_size)]
+            # Split notes into batches with indices
+            notes_with_indices = note_df.select(['index', 'note']).to_dicts()
+            note_batches = [notes_with_indices[i:i + batch_size] for i in range(0, len(notes_with_indices), batch_size)]
             
             logger.info(f"Processing {total_notes} notes in {len(note_batches)} batches using {max_concurrent_actors} actors")
             
@@ -437,17 +441,31 @@ class EpilepsyModel(_BaseModel):
                 
             note_feat = pl.read_parquet(parquet_files)
             
-            # Apply join columns logic
+            # Apply join columns logic (before renaming)
             for col1, col2 in kw_config['join_columns']:
                 if col1 in note_feat.columns and col2 in note_feat.columns:
                     note_feat = note_feat.with_columns(
                         pl.max_horizontal(col1, col2).alias(col1)
                     ).drop(col2)
             
-            # Rename columns and join with original data
-            note_feat = note_feat.rename({col: f'{col}_' for col in note_feat.columns})
-            note_feat = note_feat.hstack(note_df.select(['id', 'date']))
-            note_feat = feat.join(note_feat, on=['id', 'date'], how='left')
+            # Rename feature columns (but not the index column) and join with original data using index
+            feature_cols = [col for col in note_feat.columns if col != 'index']
+            rename_dict = {col: f'{col}_' for col in feature_cols}
+            note_feat = note_feat.rename(rename_dict)
+            
+            # Join with original note data using index, then add id and date
+            note_feat = note_feat.join(
+                note_df.select(['index', 'id', 'date']),
+                on='index',
+                how='left'
+            )
+            
+            # Finally join with the feat DataFrame
+            note_feat = feat.join(
+                note_feat,
+                on=['id', 'date'],
+                how='left'
+            ).fill_null(0)
             
         finally:
             # Clean up temporary files

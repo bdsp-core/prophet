@@ -71,7 +71,7 @@ class MCIModel(_BaseModel):
         data = super().preprocess(data, show_progress, force_casting)
         data['note'] = data['note'].with_row_index()
 
-        feat = data['note'].select(['index', 'id', 'date'])
+        feat = data['note'].select(['index', 'id'])
         if len(feat) == 0:
             raise ValueError("No notes found in the provided data. Please check your input data.")
         logger.info(f'Generating features for n = {len(feat)}')
@@ -89,26 +89,26 @@ class MCIModel(_BaseModel):
         med_feat = self._preprocess_med(data['med'], feat)
         logger.info(f"Med preprocessing finished at {datetime.now()}")
 
-        # logger.info(f"Note preprocessing started at {datetime.now()}")
-        # note_feat = self._preprocess_note(data['note'], feat, show_progress)
-        # logger.info(f"Note preprocessing finished at {datetime.now()}")
+        logger.info(f"Note preprocessing started at {datetime.now()}")
+        note_feat = self._preprocess_note(data['note'], feat, show_progress)
+        logger.info(f"Note preprocessing finished at {datetime.now()}")
 
         # join features
         feat = feat.join(
             icd_feat,
-            on=['index', 'id', 'date'],
+            on=['index', 'id'],
             how='left'
         ).join(
             med_feat,
-            on=['index', 'id', 'date'],
+            on=['index', 'id'],
             how='left'
         ).join(
-            data['note'],
-            on=['index', 'id', 'date'],
+            note_feat,
+            on=['index', 'id'],
             how='left'
         )
-        if self.config['parameters']['final_cols']:
-            feat = feat.select(['id', 'date'] + self.config['parameters']['final_cols'])
+        if 'final_cols' in self.config['parameters'] and self.config['parameters']['final_cols']:
+            feat = feat.select(['id'] + self.config['parameters']['final_cols'])
 
         logger.info(f"Preprocessing finished at {datetime.now()}")
         return feat
@@ -141,6 +141,30 @@ class MCIModel(_BaseModel):
         )
 
         return med_feat
+
+    def _preprocess_note(self, note_df: pl.DataFrame, feat: pl.DataFrame, show_progress: bool = False) -> pl.DataFrame:
+        kws = self.config['parameters']['kws']
+        note_feat = note_df.select(['index','id','note']).with_columns(
+            pl.col('note').str.to_lowercase()
+        ).with_columns([
+            pl.col('note').str.contains(kw).cast(pl.Int32).alias(kw)
+            for kw in kws
+        ]).drop('note')
+
+        # Rename feature columns (but not the index column) and join with original data using index
+        feature_cols = [col for col in note_feat.columns if col != 'index' and col != 'id']
+        rename_dict = {col: f'{col}_' for col in feature_cols}
+        note_feat = note_feat.rename(rename_dict)
+        
+        # Finally join with the feat DataFrame
+        note_feat = feat.join(
+            note_feat,
+            on=['index','id'],
+            how='left',
+            validate='1:1'
+        ).fill_null(0)
+
+        return note_feat
     
     def predict(self, feat : pl.DataFrame) -> pl.DataFrame:
         """
@@ -185,7 +209,7 @@ class MCIModel(_BaseModel):
         from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
         
         # Run the model
-        _, predictions = self.run(data)
+        _, predictions = self.run(data, return_features=True)
         
         # Join predictions with ground truth
         evaluation_df = predictions.join(

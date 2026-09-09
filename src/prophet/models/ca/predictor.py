@@ -69,9 +69,8 @@ class CAModel(_BaseModel):
     def preprocess(self, data: Dict[str, pl.DataFrame], show_progress=False, force_casting=False) -> Dict[str, pl.DataFrame]:
         logger.info(f"Preprocessing started at {datetime.now()}")
         data = super().preprocess(data, show_progress, force_casting)
-        data['note'] = data['note'].with_row_index()
 
-        feat = data['note'].select(['index', 'id', 'date'])
+        feat = data['note'].with_row_index().select(['index', 'id', 'date'])
         if len(feat) == 0:
             raise ValueError("No notes found in the provided data. Please check your input data.")
         logger.info(f'Generating features for n = {len(feat)}')
@@ -85,7 +84,7 @@ class CAModel(_BaseModel):
         logger.info(f"ICD preprocessing finished at {datetime.now()}")
 
         logger.info(f"Note preprocessing started at {datetime.now()}")
-        note_feat = self._preprocess_note(data['note'], feat, show_progress)
+        note_feat = self._preprocess_note(data['note'].with_row_index(), feat, show_progress)
         logger.info(f"Note preprocessing finished at {datetime.now()}")
 
         # join features
@@ -138,7 +137,7 @@ class CAModel(_BaseModel):
         
         # Prepare keyword configurations - note the hardcoded negate_words for CA model
         kw_names = {x: set(x.split(' ')) for x in self.config['parameters']['kws']}
-        negate_words = set(['no', 'not', 'dont', 'absent', 'ho', 'pmh', 'negat', 'histori', 'unlik', 'without', 'lack', 'defer'])
+        negate_words = set(self.config['parameters']['neg_kws'])
 
         # Ray initialization with memory management
         ray_was_initialized = ray.is_initialized()
@@ -177,14 +176,18 @@ class CAModel(_BaseModel):
                     self.kw_names = kw_names
                     self.negate_words = negate_words
                 
-                def process_batch(self, text_batch, batch_id):
+                def process_batch(self, batch_data, batch_id):
                     """Process a batch of notes with explicit memory management"""
                     batch_results = []
                     
                     try:
-                        for text in text_batch:
+                        for item in batch_data:
+                            text = item['note']
+                            index = item['index']
+                            
                             feature_vector = dict.fromkeys(self.kw_names, 0)
                             feature_vector.update({f'{x}_neg': 0 for x in self.kw_names})
+                            feature_vector['index'] = index  # Include the index
                             
                             sentences = sent_tokenize(text)
                             for s in sentences:
@@ -208,7 +211,7 @@ class CAModel(_BaseModel):
                         del batch_results, batch_df
                         gc.collect()
                         
-                        return len(text_batch), str(output_path)
+                        return len(batch_data), str(output_path)
                         
                     except Exception as e:
                         logger.error(f"Error processing batch {batch_id}: {e}")
@@ -218,9 +221,9 @@ class CAModel(_BaseModel):
             max_concurrent_actors = max(1, num_cpus - 2)  # Use your preferred num_cpus - 2
             processors = [CAProcessor.remote() for _ in range(max_concurrent_actors)]
             
-            # Split notes into batches
-            notes_list = note_df['note'].to_list()
-            note_batches = [notes_list[i:i + batch_size] for i in range(0, len(notes_list), batch_size)]
+            # Split notes into batches with indices
+            notes_with_indices = note_df.select(['index', 'note']).to_dicts()
+            note_batches = [notes_with_indices[i:i + batch_size] for i in range(0, len(notes_with_indices), batch_size)]
             
             logger.info(f"Processing {total_notes} notes in {len(note_batches)} batches using {max_concurrent_actors} actors")
             
@@ -303,15 +306,25 @@ class CAModel(_BaseModel):
                 
             note_feat = pl.read_parquet(parquet_files)
             
-            # Rename columns and join with original data - preserving CA model's specific columns
-            note_feat = note_feat.rename({col: f'{col}_' for col in note_feat.columns})
-            note_feat = note_feat.hstack(note_df.select(['index', 'id', 'date']))  # CA model includes 'date'
+            # Rename feature columns (but not the index column) and join with original data using index
+            feature_cols = [col for col in note_feat.columns if col != 'index']
+            rename_dict = {col: f'{col}_' for col in feature_cols}
+            note_feat = note_feat.rename(rename_dict)
+            
+            # Join with original note data using index, then add id and date
+            note_feat = note_feat.join(
+                note_df.select(['index', 'id', 'date']),
+                on='index',
+                how='left'
+            )
+            
+            # Finally join with the feat DataFrame
             note_feat = feat.join(
                 note_feat,
-                on=['index', 'id', 'date'],  # CA model joins on index, id, AND date
+                on=['index', 'id', 'date'],
                 how='left',
                 validate='1:1'
-            )
+            ).fill_null(0)
             
         finally:
             # Clean up temporary files
@@ -360,7 +373,7 @@ class CAModel(_BaseModel):
         from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
         
         # Run the model
-        _, predictions = self.run(data)
+        _, predictions = self.run(data, return_features=True)
         
         # Join predictions with ground truth
         evaluation_df = predictions.join(

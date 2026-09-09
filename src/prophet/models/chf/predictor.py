@@ -106,7 +106,10 @@ class CHFModel(_BaseModel):
             note_feat,
             on=['index', 'id', 'date'],
             how='left'
-        ).select(['id', 'date'] + self.config['parameters']['final_cols'])
+        )
+        
+        if self.config['parameters'].get('final_cols'):
+            feat = feat.select(['id', 'date'] + self.config['parameters']['final_cols'])
 
         logger.info(f"Preprocessing finished at {datetime.now()}")
         return feat
@@ -213,14 +216,18 @@ class CHFModel(_BaseModel):
                     self.stemmer = SnowballStemmer('english')
                     self.kw_names = kw_names
                 
-                def process_batch(self, text_batch, batch_id):
+                def process_batch(self, batch_data, batch_id):
                     """Process a batch of notes with explicit memory management"""
                     batch_results = []
                     
                     try:
-                        for text in text_batch:
+                        for item in batch_data:
+                            text = item['note']
+                            index = item['index']
+                            
                             # CHF model only has positive features (no _neg variants)
                             feature_vector = dict.fromkeys(self.kw_names, 0)
+                            feature_vector['index'] = index  # Include the index
                             
                             sentences = sent_tokenize(text)
                             for s in sentences:
@@ -241,7 +248,7 @@ class CHFModel(_BaseModel):
                         del batch_results, batch_df
                         gc.collect()
                         
-                        return len(text_batch), str(output_path)
+                        return len(batch_data), str(output_path)
                         
                     except Exception as e:
                         logger.error(f"Error processing batch {batch_id}: {e}")
@@ -251,9 +258,9 @@ class CHFModel(_BaseModel):
             max_concurrent_actors = max(1, num_cpus - 2)  # Use your preferred num_cpus - 2
             processors = [CHFProcessor.remote() for _ in range(max_concurrent_actors)]
             
-            # Split notes into batches
-            notes_list = note_df['note'].to_list()
-            note_batches = [notes_list[i:i + batch_size] for i in range(0, len(notes_list), batch_size)]
+            # Split notes into batches with indices
+            notes_with_indices = note_df.select(['index', 'note']).to_dicts()
+            note_batches = [notes_with_indices[i:i + batch_size] for i in range(0, len(notes_with_indices), batch_size)]
             
             logger.info(f"Processing {total_notes} notes in {len(note_batches)} batches using {max_concurrent_actors} actors")
             
@@ -336,18 +343,28 @@ class CHFModel(_BaseModel):
                 
             note_feat = pl.read_parquet(parquet_files)
             
-            # Rename columns and join with original data - CHF model uses index+id (no date)
-            note_feat = note_feat.rename({col: f'{col}_' for col in note_feat.columns})
-            note_feat = note_feat.hstack(note_df.select(['index', 'id']))  # CHF model: just index + id
-            note_feat = feat.join(
-                note_feat,
-                on=['index', 'id'],  # CHF model: 2 columns (no date)
-                how='left',
-                validate='1:1'
+            # Rename feature columns (but not the index column) and join with original data using index
+            feature_cols = [col for col in note_feat.columns if col != 'index']
+            rename_dict = {col: f'{col}_' for col in feature_cols}
+            note_feat = note_feat.rename(rename_dict)
+            
+            # Join with original note data using index, then add id and date
+            note_feat = note_feat.join(
+                note_df.select(['index', 'id', 'date']),
+                on='index',
+                how='left'
             )
             
+            # Finally join with the feat DataFrame
+            note_feat = feat.join(
+                note_feat,
+                on=['index', 'id', 'date'],
+                how='left',
+                validate='1:1'
+            ).fill_null(0)
+            
         finally:
-            # Clean up temporary files - fixed the missing ignore_errors=True
+            # Clean up temporary files
             shutil.rmtree(temp_dir, ignore_errors=True)
         
         return note_feat
