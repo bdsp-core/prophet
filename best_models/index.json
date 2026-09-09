@@ -1,0 +1,107 @@
+{
+  "brain_tumor": {
+    "model_type": "RandomForest",
+    "model_file": "brain_tumor/production_model.pkl",
+    "info_file": "brain_tumor/model_info.json",
+    "source": "results3",
+    "gap": "unknown"
+  },
+  "cardiac_arrest": {
+    "model_type": "XGBoost",
+    "model_file": "cardiac_arrest/production_model.pkl",
+    "info_file": "cardiac_arrest/model_info.json",
+    "source": "results4",
+    "gap": "unknown"
+  },
+  "congestive_heart_failure": {
+    "model_type": "RandomForest",
+    "model_file": "congestive_heart_failure/production_model.pkl",
+    "info_file": "congestive_heart_failure/model_info.json",
+    "source": "results4",
+    "gap": "unknown"
+  },
+  "epilepsy": {
+    "model_type": "RandomForest",
+    "model_file": "epilepsy/production_model.pkl",
+    "info_file": "epilepsy/model_info.json",
+    "source": "results4",
+    "gap": "unknown"
+  },
+  "intracranial_hemorrhage": {
+    "model_type": "XGBoost",
+    "model_file": "intracranial_hemorrhage/production_model.pkl",
+    "info_file": "intracranial_hemorrhage/model_info.json",
+    "source": "results4",
+    "gap": "unknown"
+  },
+  "ischemic_stroke": {
+    "model_type": "RandomForest",
+    "model_file": "ischemic_stroke/production_model.pkl",
+    "info_file": "ischemic_stroke/model_info.json",
+    "source": "results4",
+    "gap": "unknown"
+  },
+  "mild_cognitive_impairment_alzhiemers_disease": {
+    "model_type": "XGBoost",
+    "model_file": "mild_cognitive_impairment_alzhiemers_disease/production_model.pkl",
+    "info_file": "mild_cognitive_impairment_alzhiemers_disease/model_info.json",
+    "source": "results4",
+    "gap": "unknown"
+  },
+  "neuroinfectious_diseases": {
+    "model_type": "RandomForest",
+    "model_file": "neuroinfectious_diseases/production_model.pkl",
+    "info_file": "neuroinfectious_diseases/model_info.json",
+    "source": "results4",
+    "gap": 0.024127978040808906
+  },
+  "parkinsons_disease": {
+    "model_type": "RandomForest",
+    "model_file": "parkinsons_disease/production_model.pkl",
+    "info_file": "parkinsons_disease/model_info.json",
+    "source": "results4",
+    "gap": 0.0085
+  },
+  "subarachnoid_hemorrhage": {
+    "model_type": "GradientBoosting",
+    "model_file": "subarachnoid_hemorrhage/production_model.pkl",
+    "info_file": "subarachnoid_hemorrhage/model_info.json",
+    "source": "results3",
+    "gap": "unknown"
+  },
+  "subdural_hematoma": {
+    "model_type": "RandomForest",
+    "model_file": "subdural_hematoma/production_model.pkl",
+    "info_file": "subdural_hematoma/model_info.json",
+    "source": "results4",
+    "gap": 0.005
+  },
+  "traumatic_brain_injury": {
+    "model_type": "RandomForest",
+    "model_file": "traumatic_brain_injury/production_model.pkl",
+    "info_file": "traumatic_brain_injury/model_info.json",
+    "source": "results4",
+    "gap": 0.0157
+  },
+  "withdrawal_of_life_sustaining_therapy": {
+    "model_type": "XGBoost",
+    "model_file": "withdrawal_of_life_sustaining_therapy/production_model.pkl",
+    "info_file": "withdrawal_of_life_sustaining_therapy/model_info.json",
+    "source": "results4",
+    "gap": "unknown"
+  },
+  "narcolepsy_nt1_vs_others": {
+    "model_type": "XGBoost",
+    "model_file": "narcolepsy_nt1_vs_others/production_model.pkl",
+    "info_file": "narcolepsy_nt1_vs_others/model_info.json",
+    "source": "results4",
+    "gap": "unknown"
+  },
+  "narcolepsy_nt2ih_vs_others": {
+    "model_type": "XGBoost",
+    "model_file": "narcolepsy_nt2ih_vs_others/production_model.pkl",
+    "info_file": "narcolepsy_nt2ih_vs_others/model_info.json",
+    "source": "results4",
+    "gap": "unknown"
+  }
+}
