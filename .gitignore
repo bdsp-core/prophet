@@ -176,3 +176,13 @@ tests/
 **/models/archive/
 
 **/models/**/data/
+prophet_dataset
+
+# Scripts: exclude large data and generated output, but track the code
+scripts/figures/outcomes/
+scripts/figures/output/
+
+# Local archive of unused datasets, old result runs, and one-off scripts.
+# Contents are organized under _archive/ (results/, datasets/, scripts/, misc/)
+# but kept out of version control.
+_archive/

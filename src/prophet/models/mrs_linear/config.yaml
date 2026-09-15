@@ -1,0 +1,12 @@
+model_path: mrs_linear_model.joblib
+vectorizer_path: mrs_linear_vectorizer.joblib
+variance_filter_path: mrs_linear_variance_filter.joblib
+credits: 'Mases-Garcia A, et al. Automated Modified Rankin Score Prediction from Clinical Notes. Massachusetts General Hospital / Brigham and Women''s Hospital.'
+paper_link: ''
+schema:
+  note:
+    id : !pl String
+    note : !pl String
+    date : !pl Date
+parameters:
+  alpha: 0.01

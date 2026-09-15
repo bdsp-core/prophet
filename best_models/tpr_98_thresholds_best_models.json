@@ -1,0 +1,86 @@
+{
+  "mild_cognitive_impairment_alzhiemers_disease": {
+    "threshold": 0.13866263628005981,
+    "fpr_at_threshold": 0.03501228501228501,
+    "tpr_at_threshold": 0.9801136363636364,
+    "roc_auc": 0.9960318014295287
+  },
+  "traumatic_brain_injury": {
+    "threshold": 0.40504531393934834,
+    "fpr_at_threshold": 0.21937751004016065,
+    "tpr_at_threshold": 0.9801587301587301,
+    "roc_auc": 0.9702141900937082
+  },
+  "epilepsy": {
+    "threshold": 0.467883248072561,
+    "fpr_at_threshold": 0.08628659476117104,
+    "tpr_at_threshold": 0.9800112612612613,
+    "roc_auc": 0.9932979553609851
+  },
+  "subarachnoid_hemorrhage": {
+    "threshold": 0.288893172184841,
+    "fpr_at_threshold": 0.07040998217468805,
+    "tpr_at_threshold": 0.9788732394366197,
+    "roc_auc": 0.992213979061535
+  },
+  "ischemic_stroke": {
+    "threshold": 0.2845310050672621,
+    "fpr_at_threshold": 0.24024024024024024,
+    "tpr_at_threshold": 0.9804287045666356,
+    "roc_auc": 0.9530402456777107
+  },
+  "neuroinfectious_diseases": {
+    "threshold": 0.16487391341288407,
+    "fpr_at_threshold": 0.47079856972586415,
+    "tpr_at_threshold": 0.98125,
+    "roc_auc": 0.9430642464574228
+  },
+  "withdrawal_of_life_sustaining_therapy": {
+    "threshold": 0.1655588448047638,
+    "fpr_at_threshold": 0.1338506304558681,
+    "tpr_at_threshold": 0.9797441364605544,
+    "roc_auc": 0.9866197452532267
+  },
+  "brain_tumor": {
+    "threshold": 0.20260926023181067,
+    "fpr_at_threshold": 0.021377672209026127,
+    "tpr_at_threshold": 0.9810126582278481,
+    "roc_auc": 0.9968119531555368
+  },
+  "congestive_heart_failure": {
+    "threshold": 0.4899739915387479,
+    "fpr_at_threshold": 0.10984455958549223,
+    "tpr_at_threshold": 0.9804597701149426,
+    "roc_auc": 0.9849044130784348
+  },
+  "cardiac_arrest": {
+    "threshold": 0.19373658299446106,
+    "fpr_at_threshold": 0.10038797284190107,
+    "tpr_at_threshold": 0.9797441364605544,
+    "roc_auc": 0.9929227528699858
+  },
+  "intracranial_hemorrhage": {
+    "threshold": 0.0805012509226799,
+    "fpr_at_threshold": 0.06811145510835913,
+    "tpr_at_threshold": 0.9801829268292683,
+    "roc_auc": 0.9923005707417756
+  },
+  "parkinsons_disease": {
+    "threshold": 0.39517857383389976,
+    "fpr_at_threshold": 0.12882392929979605,
+    "tpr_at_threshold": 0.9796610169491525,
+    "roc_auc": 0.9830057188506992
+  },
+  "subdural_hematoma": {
+    "threshold": 0.518467631397749,
+    "fpr_at_threshold": 0.09234135667396061,
+    "tpr_at_threshold": 0.9803921568627451,
+    "roc_auc": 0.9801098995396845
+  },
+  "narcolepsy_any_narcolepsy_vs_others": {
+    "threshold": 0.3590937554836273,
+    "fpr_at_threshold": 0.01536627367863293,
+    "tpr_at_threshold": 0.9800774764803541,
+    "roc_auc": 0.9986160149190938
+  }
+}

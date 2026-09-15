@@ -1,0 +1,11 @@
+model_path: production_model.pkl
+credits: 'Singh A, Bhattacharyya S, et al. Neuroinfectious Disease Index (NIDX). Massachusetts General Hospital / Brigham and Women''s Hospital.'
+paper_link: ''
+schema:
+  note:
+    id : !pl String
+    note : !pl String
+    date : !pl Date
+parameters:
+  threshold: 0.5
+  # final_cols: ['abscess', 'acyclovir', 'amphotericin', 'ampicillin', 'antibiotic', 'aseptic', 'aseptic meningitis', 'bacterial', 'bacterial meningitis', 'ceftriaxone', 'cell count', 'cmv', 'cns', 'crypto', 'cryptococcal', 'cryptococcal meningitis', 'cryptococcus', 'csf', 'csf csf', 'csf culture', 'csf protein', 'ctx', 'culture', 'empiric', 'empirically', 'enterovirus', 'evd', 'fever', 'fever headache', 'fluconazole', 'fungal', 'gram stain', 'headache', 'headache fever', 'hemorrhage', 'hiv', 'hsv', 'hsv encephalitis', 'hsv pcr', 'infection', 'infectious', 'intracranial', 'listeria', 'lp', 'lyme', 'lymphocytic', 'lymphocytic pleocytosis', 'meningitis', 'meningoencephalitis', 'meropenem', 'metastatic', 'microbiology', 'neck stiffness', 'neurosyphilis', 'nucleated cell', 'opening', 'pcr', 'pcr csf', 'pcr negative', 'photophobia', 'pleocytosis', 'powassan', 'rpr', 'specimen cerebrospinal', 'syphilis', 'toxoplasmosis', 'valacyclovir', 'vanc', 'vancomycin', 'vdrl', 'ventriculitis', 'viral meningitis', 'vzv', 'wbc', 'west']

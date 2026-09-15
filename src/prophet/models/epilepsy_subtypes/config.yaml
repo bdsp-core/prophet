@@ -1,0 +1,24 @@
+model_path: epilepsy_subtypes_models.joblib
+credits: 'Fernandes M, Chan J, Engstrom C, Jing J, Ge W, Moura L, Westover MB. Epilepsy Subtype Classification from EHR Data.'
+paper_link: ''
+schema:
+  icd:
+    id : !pl String
+    icd : !pl String
+    date : !pl Date
+  med:
+    id : !pl String
+    med : !pl String
+    date : !pl Date
+  note:
+    id : !pl String
+    note : !pl String
+    date : !pl Date
+parameters:
+  syndromes:
+    - SELECT
+    - focal
+    - generalized
+    - infantilespasm
+    - JME
+    - temporal

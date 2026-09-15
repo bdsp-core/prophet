@@ -1,4 +1,4 @@
-model_path: sdh_model.joblib
+model_path: production_model.pkl
 credits: 'Paper under review. Model developed by Gregory Hooke.'
 paper_link: 
 schema:
@@ -15,7 +15,7 @@ schema:
     note : !pl String
     date : !pl Date
 parameters:
-  threshold: 0.55
+  threshold: 0.5
   dt_offset: "6mo"
   icd: ['^I62\.?0', '^S06\.?5', '^432\.?1', '^852\.?[23]']
   cpt:
@@ -24,4 +24,4 @@ parameters:
   kws: ['acut sdh', 'brain injuri', 'brain mri', 'burr hole', 'stabl sdh', 'craniectomi', 'craniotomi', 'ct head', 'drainag', 'evacu', 'head ct', 'hematoma', 'chronic sdh', 'herniat', 'intracrani hemorrhag', 'intraparenchym hemorrhag', 'midlin shift', 'mva', 'mvc', 'neurosurgeri', 'neurosurg intervent', 'scan', 'sdh', 'subdur', 'tbi', 'tentorium', 'thick', 'trauma', 'prior sdh', 'recent sdh', 'resolv sdh', 'known sdh']
   neg_kws: ['negat', 'no', 'not', 'absent']
   hist_kws: ['histori', 'pmh', 'pth', 'hx']
-  final_cols: ['^I62\.?0', '^S06\.?5', '^432\.?1', '^852\.?[23]', 'mri', 'ct', 'acut sdh_', 'brain injuri_', 'brain mri_', 'burr hole_', 'stabl sdh_', 'craniectomi_', 'craniotomi_', 'ct head_', 'drainag_', 'evacu_', 'head ct_', 'hematoma_', 'chronic sdh_', 'herniat_', 'intracrani hemorrhag_', 'intraparenchym hemorrhag_', 'midlin shift_', 'mva_', 'mvc_', 'neurosurgeri_', 'neurosurg intervent_', 'scan_', 'sdh_', 'subdur_', 'tbi_', 'tentorium_', 'thick_', 'trauma_', 'prior sdh_', 'recent sdh_', 'resolv sdh_', 'known sdh_', 'acut sdh_neg_', 'brain injuri_neg_', 'brain mri_neg_', 'burr hole_neg_', 'stabl sdh_neg_', 'craniectomi_neg_', 'craniotomi_neg_', 'ct head_neg_', 'drainag_neg_', 'evacu_neg_', 'head ct_neg_', 'hematoma_neg_', 'chronic sdh_neg_', 'herniat_neg_', 'intracrani hemorrhag_neg_', 'intraparenchym hemorrhag_neg_', 'midlin shift_neg_', 'mva_neg_', 'mvc_neg_', 'neurosurgeri_neg_', 'neurosurg intervent_neg_', 'scan_neg_', 'sdh_neg_', 'subdur_neg_', 'tbi_neg_', 'thick_neg_', 'trauma_neg_', 'prior sdh_neg_', 'recent sdh_neg_', 'resolv sdh_neg_', 'known sdh_neg_', 'acut sdh_hist_', 'brain injuri_hist_', 'brain mri_hist_', 'burr hole_hist_', 'stabl sdh_hist_', 'craniectomi_hist_', 'craniotomi_hist_', 'ct head_hist_', 'drainag_hist_', 'evacu_hist_', 'head ct_hist_', 'hematoma_hist_', 'chronic sdh_hist_', 'herniat_hist_', 'intracrani hemorrhag_hist_', 'midlin shift_hist_', 'mva_hist_', 'mvc_hist_', 'neurosurgeri_hist_', 'scan_hist_', 'sdh_hist_', 'subdur_hist_', 'tbi_hist_', 'thick_hist_', 'trauma_hist_', 'prior sdh_hist_', 'recent sdh_hist_', 'resolv sdh_hist_', 'known sdh_hist_']
+  final_cols: ['^I62\.?0', '^S06\.?5', '^432\.?1', '^852\.?_23_', 'mri', 'ct', 'acut sdh_', 'brain injuri_', 'brain mri_', 'burr hole_', 'stabl sdh_', 'craniectomi_', 'craniotomi_', 'ct head_', 'drainag_', 'evacu_', 'head ct_', 'hematoma_', 'chronic sdh_', 'herniat_', 'intracrani hemorrhag_', 'intraparenchym hemorrhag_', 'midlin shift_', 'mva_', 'mvc_', 'neurosurgeri_', 'neurosurg intervent_', 'scan_', 'sdh_', 'subdur_', 'tbi_', 'tentorium_', 'thick_', 'trauma_', 'prior sdh_', 'recent sdh_', 'resolv sdh_', 'known sdh_', 'acut sdh_neg_', 'brain injuri_neg_', 'brain mri_neg_', 'burr hole_neg_', 'stabl sdh_neg_', 'craniectomi_neg_', 'craniotomi_neg_', 'ct head_neg_', 'drainag_neg_', 'evacu_neg_', 'head ct_neg_', 'hematoma_neg_', 'chronic sdh_neg_', 'herniat_neg_', 'intracrani hemorrhag_neg_', 'intraparenchym hemorrhag_neg_', 'midlin shift_neg_', 'mva_neg_', 'mvc_neg_', 'neurosurgeri_neg_', 'neurosurg intervent_neg_', 'scan_neg_', 'sdh_neg_', 'subdur_neg_', 'tbi_neg_', 'thick_neg_', 'trauma_neg_', 'prior sdh_neg_', 'recent sdh_neg_', 'resolv sdh_neg_', 'known sdh_neg_', 'acut sdh_hist_', 'brain injuri_hist_', 'brain mri_hist_', 'burr hole_hist_', 'stabl sdh_hist_', 'craniectomi_hist_', 'craniotomi_hist_', 'ct head_hist_', 'drainag_hist_', 'evacu_hist_', 'head ct_hist_', 'hematoma_hist_', 'chronic sdh_hist_', 'herniat_hist_', 'intracrani hemorrhag_hist_', 'midlin shift_hist_', 'mva_hist_', 'mvc_hist_', 'neurosurgeri_hist_', 'scan_hist_', 'sdh_hist_', 'subdur_hist_', 'tbi_hist_', 'thick_hist_', 'trauma_hist_', 'prior sdh_hist_', 'recent sdh_hist_', 'resolv sdh_hist_', 'known sdh_hist_']

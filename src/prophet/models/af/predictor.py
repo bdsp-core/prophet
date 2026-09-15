@@ -45,7 +45,7 @@ class AFModelICD(_BaseModel):
         """
         pred = self.preprocess(data, show_progress, force_casting)
         if return_features:
-            return None, pred
+            return pred, pred
         else:
             return pred
         
@@ -53,7 +53,7 @@ class AFModelICD(_BaseModel):
         logger.info(f"Preprocessing started at {datetime.now()}")
         data = super().preprocess(data, show_progress, force_casting)
         
-        icd_feat = data['icd']
+        icd_feat = data['icd'].clone()
         if len(icd_feat) == 0:
             raise ValueError("No ICD data found in the provided data. Please check your input data.")
         icd_feat = icd_feat.filter(
@@ -62,7 +62,7 @@ class AFModelICD(_BaseModel):
             'icd',
             'date',
             pl.col('date').shift(-1).alias('next_date'),
-        ).explode(['date', 'next_date']).with_columns(
+        ).explode(['icd', 'date', 'next_date']).with_columns(
             (pl.col('next_date') - pl.col('date')).alias('time_diff')
         ).filter(
             (pl.col('time_diff') > pl.duration(days=7)) &

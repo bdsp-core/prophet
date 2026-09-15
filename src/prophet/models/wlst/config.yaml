@@ -1,0 +1,10 @@
+model_path: production_model.pkl
+credits: ''
+paper_link: ''
+schema:
+  note:
+    id : !pl String
+    note : !pl String
+parameters:
+  threshold: 0.5
+  # final_cols: ['no_escalation_of_care', 'cmo', 'arrest', 'anoxia', 'rewarm', 'hypothermia', 'cool', 'ttm', 'neurologic_recovery', 'intubation', 'palliative_extubation', 'no_response', 'cardiac_arrest', 'discharge', 'full_code', 'withdraw_care_support', 'wean_support', 'discontinue_ecmo_cvvh', 'terminal_extubation', 'transition_to_comfort', 'comfort_measures', 'expired', 'autopsy', 'pass_away', 'pass', 'death', 'die', 'deceased', 'dead', 'pronounced', 'no_heart_sound', 'post_mortem', 'pass_out', 'death_or', 'successful_extubation', 'due_to_arrest', 'brain_death', 'conversation', 'answer_questions', 'awake_and_alert', 'sudden_cardiac_death']

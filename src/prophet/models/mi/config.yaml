@@ -6,4 +6,4 @@ schema:
     icd : !pl String
     date : !pl Date
 parameters:
-  icd: ['^427\.?31', '^427\.?32', '^I48.*']
+  icd: ['^410\.?.0', '^410\.?.1', '^I21', '^I22']

@@ -67,29 +67,27 @@ class BrainTumorModel(_BaseModel):
     def preprocess(self, data: Dict[str, pl.DataFrame], show_progress=False, force_casting=False) -> Dict[str, pl.DataFrame]:
         logger.info(f"Preprocessing started at {datetime.now()}")
         data = super().preprocess(data, show_progress, force_casting)
-        data['note'] = data['note'].with_row_index()
 
-        feat = data['note'].select(['index', 'id'])
+        note_df = data['note'].with_row_index()
+        feat = note_df.select(['index', 'id'])
         if len(feat) == 0:
             raise ValueError("No notes found in the provided data. Please check your input data.")
         logger.info(f'Generating features for n = {len(feat)}')
 
         logger.info(f"Note preprocessing started at {datetime.now()}")
-        note_feat = self._preprocess_note(data['note'], feat, show_progress)
+        note_feat = self._preprocess_note(note_df, feat, show_progress)
         logger.info(f"Note preprocessing finished at {datetime.now()}")
 
-        # join features
         feat = feat.join(
             note_feat,
             on=['index', 'id'],
             how='left'
-        ).select(['id'] + self.config['parameters']['final_cols'])
+        ).select(['id', 'index'] + self.config['parameters']['final_cols'])
 
         logger.info(f"Preprocessing finished at {datetime.now()}")
         return feat
     
     def _preprocess_note(self, note_df: pl.DataFrame, feat: pl.DataFrame, show_progress=False) -> pl.DataFrame:
-        # Text preprocessing
         note_df = note_df.with_columns(
             pl.col('note').str.replace_all(r'[^a-zA-Z0-9 \n\.]', '')
             .str.replace_all(r'\s+', ' ')
@@ -138,14 +136,18 @@ class BrainTumorModel(_BaseModel):
                     self.kw_names = kw_names
                     self.negate_words = negate_words
                 
-                def process_batch(self, text_batch, batch_id):
+                def process_batch(self, batch_data, batch_id):
                     """Process a batch of notes with explicit memory management"""
                     batch_results = []
-                    
+
                     try:
-                        for text in text_batch:
+                        for item in batch_data:
+                            text = item['note']
+                            note_idx = item['index']
+
                             feature_vector = dict.fromkeys(self.kw_names, 0)
                             feature_vector.update({f'{x}_neg': 0 for x in self.kw_names})
+                            feature_vector['index'] = note_idx
                             
                             sentences = sent_tokenize(text)
                             for s in sentences:
@@ -169,7 +171,7 @@ class BrainTumorModel(_BaseModel):
                         del batch_results, batch_df
                         gc.collect()
                         
-                        return len(text_batch), str(output_path)
+                        return len(batch_data), str(output_path)
                         
                     except Exception as e:
                         logger.error(f"Error processing batch {batch_id}: {e}")
@@ -179,9 +181,9 @@ class BrainTumorModel(_BaseModel):
             max_concurrent_actors = max(1, num_cpus - 2)
             processors = [BrainTumorProcessor.remote() for _ in range(max_concurrent_actors)]
             
-            # Split notes into batches
-            notes_list = note_df['note'].to_list()
-            note_batches = [notes_list[i:i + batch_size] for i in range(0, len(notes_list), batch_size)]
+            # Split notes into batches with indices
+            notes_with_indices = note_df.select(['index', 'note']).to_dicts()
+            note_batches = [notes_with_indices[i:i + batch_size] for i in range(0, len(notes_with_indices), batch_size)]
             
             logger.info(f"Processing {total_notes} notes in {len(note_batches)} batches using {max_concurrent_actors} actors")
             
@@ -263,16 +265,29 @@ class BrainTumorModel(_BaseModel):
                 raise ValueError("No batch files were created")
                 
             note_feat = pl.read_parquet(parquet_files)
-            
-            # Rename columns and join with original data
-            note_feat = note_feat.rename({col: f'{col}_' for col in note_feat.columns})
-            note_feat = note_feat.hstack(note_df.select(['index', 'id']))
+
+            if len(note_feat) != len(note_df):
+                raise RuntimeError(
+                    f"note feature extraction produced {len(note_feat)} rows for "
+                    f"{len(note_df)} notes; a Ray batch failed to write its output"
+                )
+
+            # Rename feature columns (keep index as the join key)
+            feature_cols = [col for col in note_feat.columns if col != 'index']
+            note_feat = note_feat.rename({col: f'{col}_' for col in feature_cols})
+
+            # Join back id, then join with feat
+            note_feat = note_feat.join(
+                note_df.select(['index', 'id']),
+                on='index',
+                how='left'
+            )
             note_feat = feat.join(
                 note_feat,
                 on=['index', 'id'],
                 how='left',
                 validate='1:1'
-            )
+            ).fill_null(0)
             
         finally:
             # Clean up temporary files
@@ -306,60 +321,4 @@ class BrainTumorModel(_BaseModel):
         logger.info(f"Prediction finished in {time.time() - _start:.2f}s")
         return pred
     
-    # TODO: model does not need date, may need to use index + pandas instead
-    # def evaluate(self, data: Dict[str, pl.DataFrame], ground_truth: pl.DataFrame):
-    #     """
-    #     Evaluate model performance against ground truth
-        
-    #     Args:
-    #         data: Dictionary of DataFrames containing the test data
-    #         ground_truth: DataFrame with actual outcomes (must have 'id', 'date', and 'actual' columns)
-            
-    #     Returns:
-    #         Dictionary containing evaluation metrics
-    #     """
-    #     import numpy as np
-    #     from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
-        
-    #     # Run the model
-    #     _, predictions = self.run(data)
-        
-    #     # Join predictions with ground truth
-    #     evaluation_df = predictions.join(
-    #         ground_truth,
-    #         on=['id', 'date'],
-    #         how='inner'
-    #     )
-        
-    #     if len(evaluation_df) == 0:
-    #         raise ValueError("No matching records found between predictions and ground truth")
-        
-    #     # Calculate metrics
-    #     y_true = evaluation_df['actual'].to_numpy()
-    #     y_pred = evaluation_df['prediction'].to_numpy()
-    #     y_prob = evaluation_df['prob_YES'].to_numpy()
-        
-    #     metrics = {
-    #         'accuracy': accuracy_score(y_true, y_pred),
-    #         'precision': precision_score(y_true, y_pred),
-    #         'recall': recall_score(y_true, y_pred),
-    #         'f1': f1_score(y_true, y_pred),
-    #         'roc_auc': roc_auc_score(y_true, y_prob),
-    #         'n_samples': len(evaluation_df)
-    #     }
-        
-    #     # Add confusion matrix elements
-    #     tn = np.sum((y_true == 0) & (y_pred == 0))
-    #     fp = np.sum((y_true == 0) & (y_pred == 1))
-    #     fn = np.sum((y_true == 1) & (y_pred == 0))
-    #     tp = np.sum((y_true == 1) & (y_pred == 1))
-        
-    #     metrics.update({
-    #         'true_negatives': int(tn),
-    #         'false_positives': int(fp),
-    #         'false_negatives': int(fn),
-    #         'true_positives': int(tp)
-    #     })
-        
-    #     return metrics
 

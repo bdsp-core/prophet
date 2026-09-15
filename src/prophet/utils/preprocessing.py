@@ -29,7 +29,6 @@ class DataFrameSchema:
         errors = []
         converted_df = None
         
-        # Get schema info without triggering expensive operations
         df_schema = df.collect_schema()
         df_columns = df_schema.names()
         
@@ -64,29 +63,44 @@ class DataFrameSchema:
             if cast_expressions:
                 try:
                     # Apply type conversions if needed
-                    converted_df = df.with_columns(cast_expressions)
+                    converted_df = df.clone().with_columns(cast_expressions)
                 except Exception as e:
                     errors.append(f"Error during type conversion: {str(e)}")
             else:
                 # No conversions needed
-                converted_df = df
+                converted_df = df.clone()
         
-        # Validate each column's data type
+        # Validate each column's data type (skip columns that already failed during force_casting)
         schema_to_check = (converted_df if converted_df is not None else df).collect_schema() if force_casting else df_schema
-        
+
         for col_name, expected_dtype in self.schema.items():
             if col_name not in df_columns:
                 continue
-                
+
             actual_dtype = schema_to_check[col_name]
-            
+
             # Handle type checking by string comparison
             if str(actual_dtype) != str(expected_dtype):
-                errors.append(
+                error_msg = (
                     f"Column '{col_name}' has incorrect type. "
                     f"Expected {expected_dtype}, got {actual_dtype}"
                 )
-        
+                if not any(f"column '{col_name}'" in e.lower() for e in errors):
+                    errors.append(error_msg)
+
+        # Reject nulls in join-key columns that are declared in the schema.
+        # Only checking schema columns (not every column in the DataFrame) so that
+        # extra columns the model doesn't use don't trigger spurious errors.
+        active_df = converted_df if converted_df is not None else df
+        for col_name in ('id', 'date'):
+            if col_name in self.schema and col_name in df_columns:
+                null_count = active_df.select(pl.col(col_name).is_null().sum()).item()
+                if null_count > 0:
+                    errors.append(
+                        f"Column '{col_name}' contains {null_count} null value(s). "
+                        f"Null keys cause silent row loss in joins — drop or fill them before calling the model."
+                    )
+
         return errors, converted_df
 
 def validate_dataframe(df: pl.DataFrame, schema: Dict[str, pl.DataType], 
